@@ -1,0 +1,546 @@
+{% extends "base.html" %}
+
+{% block navbar %}
+<!-- Navbar hidden for Kiosk Mode -->
+{% endblock %}
+
+{% block content %}
+<div class="kiosk-container">
+    <!-- Left: Video Feed -->
+    <div class="video-section">
+        <div class="video-card">
+            <img src="/video_feed" alt="Live Verification Feed" class="live-feed">
+        </div>
+
+        <div class="system-status-bar">
+            <div class="status-indicator">
+                <span class="dot" id="connectionDot"></span>
+                <span id="connectionStatus">System Active</span>
+            </div>
+            <div class="user-count">
+                Active Users: {{ active_users_count or 0 }}
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Single User Info Panel -->
+    <div class="info-section">
+        <div class="info-card-container" id="infoCardContainer">
+            <!-- Default State -->
+            <div class="waiting-state" id="waitingState">
+                <div class="waiting-icon">
+                    <div class="scan-animation">
+                        <div class="scan-frame"></div>
+                        <div class="scan-line"></div>
+                    </div>
+                </div>
+                <h3>Ready to Scan</h3>
+                <p>Look at the camera to verify</p>
+            </div>
+
+            <!-- Verified State (Hidden initially) -->
+            <div class="verified-state hidden" id="verifiedState">
+                <div class="verified-header">
+                    <div class="v-icon">✓</div>
+                    <h2>Verified</h2>
+                </div>
+
+                <div class="user-profile">
+                    <!-- Placeholder avatar or initals -->
+                    <div class="avatar-circle" id="userInitial">U</div>
+                    <h1 id="userName">User Name</h1>
+                </div>
+
+                <div class="time-stats">
+                    <div class="stat-row">
+                        <span class="label">Status</span>
+                        <span class="value badge-in" id="userStatus">CHECK IN</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="label">Time</span>
+                        <span class="value time-big" id="eventTime">09:00 AM</span>
+                    </div>
+
+                    <!-- Extra stats for Check Out -->
+                    <div id="checkoutStats" class="hidden">
+                        <hr class="divider">
+                        <div class="stat-row">
+                            <span class="label">Check In</span>
+                            <span class="value" id="checkInTime">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="label">Working Hours</span>
+                            <span class="value highlight" id="workingHours">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="greeting-msg">
+                    Verify complete. Thank you!
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Kiosk Layout */
+    body {
+        margin: 0;
+        background: #ffffff;
+        /* Explicitly White */
+        color: #333;
+        overflow: hidden;
+        font-family: 'Segoe UI', sans-serif;
+    }
+
+    .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        height: 100vh;
+    }
+
+    .kiosk-container {
+        display: flex;
+        height: 100vh;
+        width: 100vw;
+        background: #ffffff;
+    }
+
+    /* Left Section: Video */
+    .video-section {
+        flex: 2;
+        /* 66% width */
+        background: #ffffff;
+        /* White background */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 40px;
+        position: relative;
+        border-right: 1px solid #f0f0f0;
+    }
+
+    .video-card {
+        width: 100%;
+        max-width: 1100px;
+        aspect-ratio: 16/9;
+        background: #000;
+        border-radius: 24px;
+        overflow: hidden;
+        position: relative;
+        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
+        /* Soft shadow */
+    }
+
+    .live-feed {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .system-status-bar {
+        margin-top: 30px;
+        width: 100%;
+        max-width: 1100px;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 10px;
+        color: #888;
+        font-size: 0.9rem;
+    }
+
+    .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        background: #00e676;
+        border-radius: 50%;
+    }
+
+    /* Right Section: Info Panel */
+    .info-section {
+        flex: 1;
+        /* 33% width */
+        background: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 40px;
+        min-width: 400px;
+    }
+
+    .info-card-container {
+        width: 100%;
+        height: 100%;
+        max-height: 600px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    /* Waiting State */
+    .waiting-state {
+        text-align: center;
+        color: #aaa;
+        animation: fadeIn 0.5s ease;
+    }
+
+    .waiting-icon {
+        margin-bottom: 20px;
+    }
+
+    .rotating-loader {
+        transform-origin: center;
+        animation: rotate 2s linear infinite;
+    }
+
+    @keyframes rotate {
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    .waiting-state h3 {
+        margin: 0;
+        font-weight: 600;
+        color: #888;
+    }
+
+    .waiting-state p {
+        margin: 8px 0 0;
+        font-size: 0.9rem;
+    }
+
+    /* Verified State */
+    .verified-state {
+        background: #fff;
+        padding: 40px;
+        border-radius: 30px;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+        /* Subtle card shadow */
+        text-align: center;
+        border: 1px solid #f5f5f5;
+        animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+        from {
+            transform: scale(0.9);
+            opacity: 0;
+        }
+
+        to {
+            transform: scale(1);
+            opacity: 1;
+        }
+    }
+
+    .verified-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 30px;
+        color: #00c853;
+    }
+
+    .v-icon {
+        width: 32px;
+        height: 32px;
+        background: #00c853;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+
+    .verified-header h2 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .avatar-circle {
+        width: 80px;
+        height: 80px;
+        background: #e3f2fd;
+        color: #1565c0;
+        font-size: 2.5rem;
+        font-weight: bold;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 20px;
+    }
+
+    .user-profile h1 {
+        margin: 0 0 40px 0;
+        font-size: 2.2rem;
+        color: #2c3e50;
+        line-height: 1.2;
+    }
+
+    .time-stats {
+        background: #fafafa;
+        padding: 25px;
+        border-radius: 20px;
+        margin-bottom: 25px;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .stat-row:last-child {
+        margin-bottom: 0;
+    }
+
+    .divider {
+        border: 0;
+        border-top: 1px solid #eee;
+        margin: 15px 0;
+    }
+
+    .label {
+        font-size: 0.95rem;
+        color: #888;
+        font-weight: 500;
+    }
+
+    .value {
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #333;
+    }
+
+    .time-big {
+        font-size: 1.4rem;
+    }
+
+    .badge-in {
+        background: #e8f5e9;
+        color: #2e7d32;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+    }
+
+    .badge-out {
+        background: #e3f2fd;
+        color: #1565c0;
+        padding: 4px 12px;
+        border-radius: 12px;
+        font-size: 0.9rem;
+    }
+
+    .highlight {
+        color: #0288d1;
+    }
+
+    .greeting-msg {
+        color: #aaa;
+        font-size: 0.9rem;
+    }
+
+    .hidden {
+        display: none !important;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+        }
+
+        to {
+            opacity: 1;
+        }
+    }
+
+    /* Scanning Animation */
+    .scan-animation {
+        width: 60px;
+        height: 60px;
+        position: relative;
+        margin: 0 auto;
+    }
+
+    .scan-frame {
+        width: 100%;
+        height: 100%;
+        border: 2px solid #e0e0e0;
+        border-radius: 12px;
+        position: relative;
+    }
+
+    .scan-line {
+        position: absolute;
+        top: 10%;
+        left: 10%;
+        right: 10%;
+        height: 2px;
+        background: #00e676;
+        box-shadow: 0 0 8px rgba(0, 230, 118, 0.5);
+        animation: scanning 2s ease-in-out infinite;
+        border-radius: 1px;
+    }
+
+    @keyframes scanning {
+        0% {
+            top: 15%;
+            opacity: 0;
+        }
+
+        15% {
+            opacity: 1;
+        }
+
+        50% {
+            top: 85%;
+        }
+
+        85% {
+            opacity: 1;
+        }
+
+        100% {
+            top: 15%;
+            opacity: 0;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let ws;
+    let timer = null;
+
+    const waitingState = document.getElementById('waitingState');
+    const verifiedState = document.getElementById('verifiedState');
+
+    // UI Elements
+    const elName = document.getElementById('userName');
+    const elInitial = document.getElementById('userInitial');
+    const elStatus = document.getElementById('userStatus');
+    const elTime = document.getElementById('eventTime');
+    const elCheckoutStats = document.getElementById('checkoutStats');
+    const elCheckInTime = document.getElementById('checkInTime');
+    const elWorkingHours = document.getElementById('workingHours');
+
+    function connectWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+
+        ws.onopen = () => {
+            document.getElementById('connectionDot').style.background = '#00e676';
+            document.getElementById('connectionStatus').textContent = 'System Online';
+        };
+
+        ws.onclose = () => {
+            document.getElementById('connectionDot').style.background = '#f44336';
+            document.getElementById('connectionStatus').textContent = 'Offline';
+            setTimeout(connectWS, 3000);
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            showUserVerification(data);
+        };
+    }
+
+    // Audio
+    const audioVerify = new Audio('/static/audio/thank_you.mp3');
+
+    async function playVerifySound() {
+        try {
+            audioVerify.currentTime = 0;
+            await audioVerify.play();
+        } catch (err) {
+            console.warn("Autoplay blocked:", err);
+            // Show hint if blocked
+            let existingToast = document.getElementById('audio-toast');
+            if (!existingToast) {
+                const toast = document.createElement('div');
+                toast.id = 'audio-toast';
+                toast.innerHTML = "🔊 Click screen to enable sound";
+                toast.style.cssText = "position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:12px 24px; border-radius:30px; z-index:9999; cursor:pointer; font-weight:bold; animation: fadeIn 0.5s;";
+                toast.onclick = () => {
+                    audioVerify.play();
+                    toast.remove();
+                };
+                document.body.appendChild(toast);
+                // Auto remove after 10s if ignored
+                setTimeout(() => { if (toast.parentNode) toast.remove(); }, 10000);
+            }
+        }
+    }
+
+    function showUserVerification(data) {
+        if (!data.name || data.name === "Unknown") return;
+
+        // Play Sound
+        playVerifySound();
+
+        // Populate Data
+        elName.textContent = data.name;
+        elInitial.textContent = data.name.charAt(0).toUpperCase();
+
+        // Status & Color
+        if (data.status === 'check_in') {
+            elStatus.textContent = 'CHECK IN';
+            elStatus.className = 'value badge-in';
+            elCheckoutStats.classList.add('hidden');
+        } else {
+            elStatus.textContent = 'CHECK OUT';
+            elStatus.className = 'value badge-out';
+            elCheckoutStats.classList.remove('hidden');
+
+            // Populate extra stats
+            if (data.working_time) {
+                elWorkingHours.textContent = data.working_time;
+            } else {
+                elWorkingHours.textContent = "Calc...";
+            }
+            if (data.check_in_time) {
+                elCheckInTime.textContent = data.check_in_time;
+            } else {
+                elCheckInTime.textContent = "--:--";
+            }
+        }
+
+        // Time
+        // The event has timestamp "HH:MM:SS". Format simply
+        elTime.textContent = data.timestamp;
+
+        // Show UI
+        waitingState.classList.add('hidden');
+        verifiedState.classList.remove('hidden');
+
+        // Clear previous timer if valid
+        if (timer) clearTimeout(timer);
+
+        // Set new timer to revert after 3 seconds
+        timer = setTimeout(() => {
+            verifiedState.classList.add('hidden');
+            waitingState.classList.remove('hidden');
+            /* Optional: Simple fade out logic could be added */
+        }, 4000);
+    }
+
+    connectWS();
+</script>
+{% endblock %}

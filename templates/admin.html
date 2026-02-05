@@ -1,0 +1,301 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="monitor">
+    <h1>🛠️ Admin Dashboard {% if user %}({{ user }}){% endif %}</h1>
+
+    <!-- Statistics Section -->
+    <!-- Stats Row (Similar to Ref Image) -->
+    <div class="stats-grid">
+        <!-- Goal / Current Status Card -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="icon">🎯</span> Goal this Year
+            </div>
+            <div class="stat-body" style="text-align: center;">
+                <canvas id="gaugeChart" height="150"></canvas>
+                <div class="stat-big-number">{{ total_employees }}</div>
+                <div class="stat-label">Total Employees</div>
+            </div>
+        </div>
+
+        <!-- Line Chart: Attendance Trends -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="icon">📈</span> Attendance Trends
+            </div>
+            <div class="stat-body">
+                <canvas id="trendsChart" height="180"></canvas>
+            </div>
+        </div>
+
+        <!-- Pie Chart: Dept Distribution -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="icon">🍰</span> Department Dist.
+            </div>
+            <div class="stat-body">
+                <canvas id="deptChart" height="180"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Second Row -->
+    <div class="stats-grid">
+        <!-- Production / Attendance Rate -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="icon">⚙️</span> Today's Attendance
+            </div>
+            <div class="stat-body">
+                <!-- Using a horizontal bar for percentage -->
+                <div style="margin-top: 40px; margin-bottom: 20px;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                        <strong>Attendance Rate</strong>
+                        <span>{{ attendance_rate }}%</span>
+                    </div>
+                    <div style="background:#e0e0e0; border-radius:10px; height:20px; width:100%;">
+                        <div style="background:#00c853; height:100%; border-radius:10px; transition: width 1s;">
+                            {{ attendance_rate }}%
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-big-number" style="color: #00c853;">{{ weekly_attendance }}</div>
+                <div class="stat-label">Weekly Check-ins</div>
+            </div>
+        </div>
+
+        <!-- Revenue / Monthly Stats -->
+        <div class="stat-card">
+            <div class="stat-header">
+                <span class="icon">💰</span> Monthly Activity
+            </div>
+            <div class="stat-body">
+                <div class="stat-big-number" style="color: #0288d1; margin-top: 30px;">{{ monthly_attendance }}</div>
+                <div class="stat-label">Check-ins (30 Days)</div>
+
+                <div style="margin-top: 20px; background: #e1f5fe; padding: 10px; border-radius: 8px; color: #01579b;">
+                    <strong>⬆ 4%</strong> vs last month
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h1>Quick Actions</h1>
+    <a href="/register" class="dash-card">
+        <div class="card-icon">👤</div>
+        <div class="card-content">
+            <h3>Register User</h3>
+            <p>Enroll new employees with face biometric data.</p>
+        </div>
+    </a>
+
+    <!-- Employees Card -->
+    <a href="/users" class="dash-card">
+        <div class="card-icon">👥</div>
+        <div class="card-content">
+            <h3>Employee Management</h3>
+            <p>View, edit, or delete registered employees.</p>
+        </div>
+    </a>
+
+    <!-- Attendance Card -->
+    <a href="/attendance" class="dash-card">
+        <div class="card-icon">📅</div>
+        <div class="card-content">
+            <h3>Attendance Logs</h3>
+            <p>View daily attendance records and history.</p>
+        </div>
+    </a>
+</div>
+
+<style>
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+        gap: 30px;
+        margin-top: 30px;
+    }
+
+    .dash-card {
+        background: white;
+        padding: 30px;
+        border-radius: 16px;
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.3s ease;
+        border: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    }
+
+    .dash-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        border-color: #0288d1;
+    }
+
+    .card-icon {
+        font-size: 3.5rem;
+        margin-bottom: 20px;
+        background: #f0f9ff;
+        width: 100px;
+        height: 100px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        border: 3px solid #b3e5fc;
+    }
+
+    .card-content h3 {
+        margin: 0 0 10px 0;
+        color: #2c3e50;
+        font-size: 1.4rem;
+    }
+
+    .card-content p {
+        color: #666;
+        margin: 0;
+    }
+
+    /* Stats Grid Styles */
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 25px;
+        margin-bottom: 30px;
+        margin-top: 20px;
+    }
+
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(0, 0, 0, 0.05);
+        transition: transform 0.2s ease;
+        overflow: hidden;
+        display: block;
+        /* Reset flex */
+    }
+
+    .stat-header {
+        background: #f8f9fa;
+        padding: 15px 20px;
+        font-weight: 700;
+        color: #2c3e50;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .stat-header .icon {
+        font-size: 1.2rem;
+    }
+
+    .stat-body {
+        padding: 20px;
+        position: relative;
+    }
+
+    .stat-big-number {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #333;
+        margin-top: 10px;
+        text-align: center;
+    }
+
+    .stat-label {
+        font-size: 0.9rem;
+        color: #718096;
+        text-align: center;
+        margin-bottom: 10px;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', async function () {
+        // Fetch data
+        const response = await fetch('/api/dashboard/stats');
+        const data = await response.json();
+
+        // 1. Gauge Chart (Half Doughnut for Goal)
+        const ctxGauge = document.getElementById('gaugeChart').getContext('2d');
+        new Chart(ctxGauge, {
+            type: 'doughnut',
+            data: {
+                labels: ['Current', 'Remaining'],
+                datasets: [{
+                    data: [{ attendance_rate }, 50],
+                    backgroundColor: ['#ffc107', '#e0e0e0'],
+                    borderWidth: 0,
+                    cutout: '80%',
+                    circumference: 180,
+                    rotation: 270
+                }]
+            },
+            options: {
+                aspectRatio: 2,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: false }
+                }
+            }
+        });
+
+        // 2. Line Chart (Trends)
+        const ctxTrends = document.getElementById('trendsChart').getContext('2d');
+        new Chart(ctxTrends, {
+            type: 'line',
+            data: {
+                labels: data.trends.labels,
+                datasets: [{
+                    label: 'Check-ins',
+                    data: data.trends.data,
+                    borderColor: '#ff7043',
+                    backgroundColor: 'rgba(255, 112, 67, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 3
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { display: false } },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+
+        // 3. Pie Chart (Department)
+        const ctxDept = document.getElementById('deptChart').getContext('2d');
+        new Chart(ctxDept, {
+            type: 'pie',
+            data: {
+                labels: data.distribution.labels,
+                datasets: [{
+                    data: data.distribution.data,
+                    backgroundColor: ['#42a5f5', '#66bb6a', '#ffa726', '#ab47bc', '#ef5350'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { position: 'right', labels: { boxWidth: 12 } }
+                }
+            }
+        });
+    });
+</script>
+{% endblock %}

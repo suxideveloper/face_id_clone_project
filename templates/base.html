@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Attendance System</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    {% block navbar %}
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/admin" class="nav-brand">Employee Attendance System</a>
+            <ul class="nav-links">
+                <li><a href="/admin">Dashboard</a></li>
+                <li><a href="/users">Employees</a></li>
+                <li><a href="/attendance">Attendance</a></li>
+                <li><a href="/register">Register</a></li>
+                <li><a href="/logout" style="color: #c62828;">Logout</a></li>
+            </ul>
+        </div>
+    </nav>
+    {% endblock %}
+    <div class="container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <!-- Attendance Notification Overlay -->
+    <div id="attendanceOverlay" class="attendance-overlay hidden">
+        <div class="attendance-notification" id="attendanceNotification">
+            <div class="notification-icon" id="notificationIcon">✓</div>
+            <div class="notification-name" id="notificationName">John Doe</div>
+            <div class="notification-message" id="notificationMessage">Welcome!</div>
+            <div class="notification-time" id="notificationTime">09:00:00</div>
+        </div>
+    </div>
+
+    {% block scripts %}{% endblock %}
+</body>
+
+</html>

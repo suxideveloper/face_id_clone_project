@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="monitor">
+    <div class="page-header">
+        <h1>✏️ Edit Employee</h1>
+    </div>
+
+    <div class="edit-container">
+        <form id="editForm" class="edit-form">
+            <div class="form-group">
+                <label>User ID</label>
+                <input type="text" value="{{ name }}" disabled class="disabled-input">
+                <small>User ID cannot be changed</small>
+            </div>
+
+            <div class="form-group">
+                <label for="full_name">Full Name</label>
+                <input type="text" id="full_name" name="full_name" value="{{ user_info.full_name or '' }}"
+                    placeholder="e.g., John Doe">
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="tel" id="phone" name="phone" value="{{ user_info.phone or '' }}"
+                    placeholder="e.g., +998 90 123 45 67">
+            </div>
+
+            <div class="form-group">
+                <label for="department">Department</label>
+                <select id="department" name="department">
+                    <option value="">Select Department</option>
+                    <option value="IT" {% if user_info.department=='IT' %}selected{% endif %}>IT</option>
+                    <option value="HR" {% if user_info.department=='HR' %}selected{% endif %}>Human Resources</option>
+                    <option value="Finance" {% if user_info.department=='Finance' %}selected{% endif %}>Finance</option>
+                    <option value="Marketing" {% if user_info.department=='Marketing' %}selected{% endif %}>Marketing
+                    </option>
+                    <option value="Operations" {% if user_info.department=='Operations' %}selected{% endif %}>Operations
+                    </option>
+                    <option value="Security" {% if user_info.department=='Security' %}selected{% endif %}>Security
+                    </option>
+                    <option value="Management" {% if user_info.department=='Management' %}selected{% endif %}>Management
+                    </option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="position">Position</label>
+                <input type="text" id="position" name="position" value="{{ user_info.position or '' }}"
+                    placeholder="e.g., Software Engineer">
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" class="btn-save">Save Changes</button>
+                <a href="/users/{{ name }}" class="btn-cancel">Cancel</a>
+            </div>
+        </form>
+
+        <div id="status" class="status-message"></div>
+    </div>
+
+    <div class="back-section">
+        <a href="/users" class="back-link">← Back to Employees</a>
+    </div>
+</div>
+
+<style>
+    .page-header h1 {
+        color: #2c3e50;
+    }
+
+    .edit-container {
+        max-width: 550px;
+        margin: 0 auto;
+    }
+
+    .edit-form {
+        background: #ffffff;
+        padding: 35px 40px;
+        border-radius: 16px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    }
+
+    .form-group {
+        margin-bottom: 20px;
+        text-align: left;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #0277bd;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-align: left;
+        padding-left: 5px;
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+        color: #333;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-group input:focus,
+    .form-group select:focus {
+        outline: none;
+        border-color: #0288d1;
+        box-shadow: 0 0 0 3px rgba(2, 136, 209, 0.1);
+    }
+
+    .disabled-input {
+        background: #f5f5f5 !important;
+        color: #888 !important;
+        cursor: not-allowed;
+    }
+
+    .form-group small {
+        display: block;
+        margin-top: 6px;
+        color: #888;
+        font-size: 0.8rem;
+    }
+
+    .form-actions {
+        display: flex;
+        gap: 15px;
+        margin-top: 25px;
+    }
+
+    .btn-save {
+        flex: 1;
+        padding: 14px 20px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        background: linear-gradient(135deg, #0288d1, #26c6da);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        transition: all 0.3s ease;
+    }
+
+    .btn-save:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(2, 136, 209, 0.4);
+    }
+
+    .btn-cancel {
+        padding: 14px 24px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        background: #f5f5f5;
+        color: #555;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        text-decoration: none;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .btn-cancel:hover {
+        background: #e0e0e0;
+    }
+
+    .status-message {
+        margin-top: 20px;
+        padding: 15px;
+        border-radius: 8px;
+        font-weight: 600;
+        text-align: center;
+    }
+
+    .status-message.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+
+    .status-message.error {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+    }
+
+    .back-section {
+        margin-top: 30px;
+    }
+
+    .back-link {
+        color: #666;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        color: #0288d1;
+    }
+</style>
+
+<script>
+    document.getElementById('editForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const statusDiv = document.getElementById('status');
+        const btn = document.querySelector('.btn-save');
+
+        btn.textContent = 'Saving...';
+        btn.disabled = true;
+
+        try {
+            const response = await fetch('/api/users/{{ name }}/update', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (response.ok) {
+                statusDiv.textContent = "✅ " + result.message;
+                statusDiv.className = "status-message success";
+                setTimeout(() => window.location.href = '/users/{{ name }}', 1500);
+            } else {
+                statusDiv.textContent = "❌ Error: " + result.message;
+                statusDiv.className = "status-message error";
+            }
+        } catch (err) {
+            statusDiv.textContent = "❌ Network Error: " + err;
+            statusDiv.className = "status-message error";
+        }
+
+        btn.textContent = 'Save Changes';
+        btn.disabled = false;
+    });
+</script>
+{% endblock %}

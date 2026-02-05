@@ -1,0 +1,596 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="monitor">
+    <h1>Register New Employee</h1>
+
+    <div class="registration-container">
+        <!-- Step 1: Face Capture Section -->
+        <div class="capture-section" id="captureSection">
+            <div class="section-header">
+                <span class="step-badge">Step 1</span>
+                <h2>Capture Face Images</h2>
+            </div>
+
+            <div class="video-wrapper">
+                <img src="/video_feed?mode=registration" alt="Video Feed" id="videoFeed">
+                <!-- Pose Progress Indicator -->
+                <div class="pose-progress" id="poseProgress">
+                    <div class="pose-step" data-step="1">①</div>
+                    <div class="pose-step" data-step="2">②</div>
+                    <div class="pose-step" data-step="3">③</div>
+                    <div class="pose-step" data-step="4">④</div>
+                    <div class="pose-step" data-step="5">⑤</div>
+                </div>
+            </div>
+
+            <div class="pose-instructions" id="poseInstructions">
+                Enter a username and click "Start Capture" to begin
+            </div>
+
+            <!-- Username input for capture -->
+            <div class="capture-controls">
+                <div class="username-input-group">
+                    <label for="captureUsername">Username (ID)*</label>
+                    <input type="text" id="captureUsername" placeholder="e.g., john_doe" required>
+                </div>
+                <button type="button" id="startCaptureBtn" class="btn-capture" onclick="startCapture()">
+                    📸 Start Capture
+                </button>
+            </div>
+
+            <div id="captureStatus" class="status-message"></div>
+        </div>
+
+        <!-- Step 2: Form Section (Initially Disabled) -->
+        <div class="form-section" id="formSection">
+            <div class="section-header">
+                <span class="step-badge step-pending" id="step2Badge">Step 2</span>
+                <h2>Employee Details</h2>
+            </div>
+
+            <form id="registerForm" class="register-form">
+                <input type="hidden" id="hiddenName" name="name" value="">
+
+                <div class="form-group">
+                    <label>Username (ID)</label>
+                    <input type="text" id="displayUsername" disabled class="disabled-input">
+                    <small>Captured in Step 1</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="full_name">Full Name</label>
+                    <input type="text" id="full_name" name="full_name" placeholder="e.g., John Doe" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Phone Number</label>
+                    <input type="tel" id="phone" name="phone" placeholder="e.g., +998 90 123 45 67" disabled>
+                </div>
+
+                <div class="form-group">
+                    <label for="department">Department</label>
+                    <select id="department" name="department" disabled>
+                        <option value="">Select Department</option>
+                        <option value="IT">IT</option>
+                        <option value="HR">Human Resources</option>
+                        <option value="Finance">Finance</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Operations">Operations</option>
+                        <option value="Security">Security</option>
+                        <option value="Management">Management</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="position">Position</label>
+                    <input type="text" id="position" name="position" placeholder="e.g., Software Engineer" disabled>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn-primary" disabled>
+                    Complete Registration
+                </button>
+            </form>
+
+            <div id="formStatus" class="status-message"></div>
+        </div>
+    </div>
+
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="/" class="back-link">← Back to Verification</a>
+    </div>
+</div>
+
+<style>
+    .registration-container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        max-width: 1400px;
+        margin: 0 auto;
+        align-items: stretch;
+    }
+
+    @media (max-width: 1000px) {
+        .registration-container {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .section-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 20px;
+    }
+
+    .section-header h2 {
+        margin: 0;
+        color: #2c3e50;
+        font-size: 1.3rem;
+    }
+
+    .step-badge {
+        background: linear-gradient(135deg, #0288d1, #26c6da);
+        color: white;
+        padding: 6px 14px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 0.85rem;
+    }
+
+    .step-pending {
+        background: #bdbdbd;
+    }
+
+    .step-complete {
+        background: linear-gradient(135deg, #43a047, #66bb6a);
+    }
+
+    /* Capture Section */
+    .capture-section {
+        background: #fff;
+        padding: 25px;
+        border-radius: 16px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+        display: flex;
+        flex-direction: column;
+    }
+
+    .video-wrapper {
+        position: relative;
+        background: #000;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+        flex: 1;
+        min-height: 400px;
+    }
+
+    .video-wrapper img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+    }
+
+    .pose-progress {
+        position: absolute;
+        top: 15px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        gap: 10px;
+        background: rgba(0, 0, 0, 0.6);
+        padding: 8px 16px;
+        border-radius: 25px;
+    }
+
+    .pose-step {
+        font-size: 1.2rem;
+        color: #666;
+        transition: all 0.3s ease;
+    }
+
+    .pose-step.active {
+        color: #ff9800;
+        transform: scale(1.2);
+        animation: pulse 1s infinite;
+    }
+
+    .pose-step.complete {
+        color: #4caf50;
+    }
+
+    @keyframes pulse {
+
+        0%,
+        100% {
+            transform: scale(1.2);
+        }
+
+        50% {
+            transform: scale(1.4);
+        }
+    }
+
+    .pose-instructions {
+        text-align: center;
+        padding: 15px;
+        background: #f5f5f5;
+        border-radius: 8px;
+        margin-top: 15px;
+        font-size: 1rem;
+        color: #333;
+        font-weight: 500;
+    }
+
+    .capture-controls {
+        margin-top: 20px;
+        display: flex;
+        gap: 15px;
+        align-items: flex-end;
+    }
+
+    .username-input-group {
+        flex: 1;
+    }
+
+    .username-input-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #0277bd;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-align: left;
+        padding-left: 5px;
+    }
+
+    .username-input-group input {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 1rem;
+    }
+
+    .username-input-group input:focus {
+        outline: none;
+        border-color: #0288d1;
+        box-shadow: 0 0 0 3px rgba(2, 136, 209, 0.1);
+    }
+
+    .btn-capture {
+        padding: 12px 28px;
+        background: linear-gradient(135deg, #ff9800, #ffb74d);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        white-space: nowrap;
+    }
+
+    .btn-capture:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+    }
+
+    .btn-capture:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    /* Form Section */
+    .form-section {
+        background: #fff;
+        padding: 25px;
+        border-radius: 16px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    }
+
+    .register-form {
+        padding: 10px 0;
+    }
+
+    .form-group {
+        margin-bottom: 18px;
+        text-align: left;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 8px;
+        color: #0277bd;
+        font-weight: 600;
+        font-size: 0.9rem;
+        padding-left: 5px;
+    }
+
+    .form-group input,
+    .form-group select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background: #fff;
+        color: #333;
+        font-size: 1rem;
+        transition: all 0.3s ease;
+    }
+
+    .form-group input:focus:not(:disabled),
+    .form-group select:focus:not(:disabled) {
+        outline: none;
+        border-color: #0288d1;
+        box-shadow: 0 0 0 3px rgba(2, 136, 209, 0.1);
+    }
+
+    .form-group input:disabled,
+    .form-group select:disabled {
+        background: #f5f5f5;
+        color: #999;
+        cursor: not-allowed;
+    }
+
+    .disabled-input {
+        background: #e8f5e9 !important;
+        color: #2e7d32 !important;
+        font-weight: 500;
+    }
+
+    .form-group small {
+        display: block;
+        margin-top: 5px;
+        color: #888;
+        font-size: 0.8rem;
+        padding-left: 5px;
+    }
+
+    .btn-primary {
+        width: 100%;
+        padding: 14px;
+        background: linear-gradient(135deg, #0288d1, #26c6da);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin-top: 10px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 15px rgba(2, 136, 209, 0.4);
+    }
+
+    .btn-primary:disabled {
+        background: #bdbdbd;
+        cursor: not-allowed;
+    }
+
+    .status-message {
+        margin-top: 15px;
+        padding: 12px;
+        border-radius: 8px;
+        font-weight: 500;
+        text-align: center;
+    }
+
+    .status-message.success {
+        background: #e8f5e9;
+        color: #2e7d32;
+        border: 1px solid #a5d6a7;
+    }
+
+    .status-message.error {
+        background: #ffebee;
+        color: #c62828;
+        border: 1px solid #ef9a9a;
+    }
+
+    .status-message.loading {
+        background: #fff3e0;
+        color: #e65100;
+        border: 1px solid #ffcc80;
+    }
+
+    .back-link {
+        color: #666;
+        text-decoration: none;
+    }
+
+    .back-link:hover {
+        color: #0288d1;
+    }
+</style>
+
+<script>
+    let capturedUsername = null;
+    let pollInterval = null;
+
+    function updatePoseProgress(stage) {
+        const steps = document.querySelectorAll('.pose-step');
+        const instructions = document.getElementById('poseInstructions');
+
+        const poseInstructions = [
+            "📷 Look straight at the camera",
+            "⬅️ Turn your head slightly LEFT",
+            "➡️ Turn your head slightly RIGHT",
+            "⬆️ Tilt your chin UP slightly",
+            "⬇️ Tilt your chin DOWN slightly"
+        ];
+
+        steps.forEach((step, idx) => {
+            step.classList.remove('active', 'complete');
+            if (idx < stage) {
+                step.classList.add('complete');
+            } else if (idx === stage) {
+                step.classList.add('active');
+            }
+        });
+
+        if (stage >= 0 && stage < 5) {
+            instructions.textContent = poseInstructions[stage];
+            instructions.style.background = '#fff3e0';
+            instructions.style.color = '#e65100';
+        } else if (stage >= 5) {
+            instructions.textContent = "✅ All poses captured! Processing...";
+            instructions.style.background = '#e8f5e9';
+            instructions.style.color = '#2e7d32';
+        }
+    }
+
+    async function pollRegistrationState() {
+        try {
+            const response = await fetch('/api/registration-state');
+            const data = await response.json();
+            if (data.stage >= 0) {
+                updatePoseProgress(data.stage);
+            }
+        } catch (e) {
+            // Silently fail
+        }
+    }
+
+    async function startCapture() {
+        const usernameInput = document.getElementById('captureUsername');
+        const username = usernameInput.value.trim();
+
+        if (!username) {
+            alert('Please enter a username first!');
+            usernameInput.focus();
+            return;
+        }
+
+        const btn = document.getElementById('startCaptureBtn');
+        const statusDiv = document.getElementById('captureStatus');
+        const instructions = document.getElementById('poseInstructions');
+
+        btn.disabled = true;
+        btn.textContent = '📸 Capturing...';
+        usernameInput.disabled = true;
+
+        statusDiv.textContent = "📸 Starting capture... Follow the pose instructions!";
+        statusDiv.className = "status-message loading";
+
+        // Reset progress
+        document.querySelectorAll('.pose-step').forEach(s => s.classList.remove('active', 'complete'));
+
+        // Start polling
+        pollInterval = setInterval(pollRegistrationState, 300);
+
+        try {
+            const formData = new FormData();
+            formData.append('name', username);
+
+            const response = await fetch('/api/capture-faces', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            clearInterval(pollInterval);
+
+            if (result.success) {
+                capturedUsername = username;
+                statusDiv.textContent = "✅ " + result.message;
+                statusDiv.className = "status-message success";
+
+                // Mark all steps complete
+                document.querySelectorAll('.pose-step').forEach(s => {
+                    s.classList.remove('active');
+                    s.classList.add('complete');
+                });
+
+                instructions.textContent = "✅ Face capture complete! Fill in the details.";
+                instructions.style.background = '#e8f5e9';
+                instructions.style.color = '#2e7d32';
+
+                // Enable Step 2
+                enableFormSection(username);
+            } else {
+                statusDiv.textContent = "❌ " + result.message;
+                statusDiv.className = "status-message error";
+                btn.disabled = false;
+                btn.textContent = '📸 Start Capture';
+                usernameInput.disabled = false;
+
+                instructions.textContent = "Position your face in the frame and try again";
+                instructions.style.background = '#f5f5f5';
+                instructions.style.color = '#333';
+            }
+        } catch (err) {
+            clearInterval(pollInterval);
+            statusDiv.textContent = "❌ Network Error: " + err;
+            statusDiv.className = "status-message error";
+            btn.disabled = false;
+            btn.textContent = '📸 Start Capture';
+            usernameInput.disabled = false;
+        }
+    }
+
+    function enableFormSection(username) {
+        // Update step badge
+        document.getElementById('step2Badge').classList.remove('step-pending');
+        document.getElementById('step2Badge').classList.add('step-complete');
+
+        // Set username
+        document.getElementById('hiddenName').value = username;
+        document.getElementById('displayUsername').value = username;
+
+        // Enable form fields
+        document.getElementById('full_name').disabled = false;
+        document.getElementById('phone').disabled = false;
+        document.getElementById('department').disabled = false;
+        document.getElementById('position').disabled = false;
+        document.getElementById('submitBtn').disabled = false;
+
+        // Focus on first field
+        document.getElementById('full_name').focus();
+    }
+
+    document.getElementById('registerForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(e.target);
+        const statusDiv = document.getElementById('formStatus');
+        const btn = document.getElementById('submitBtn');
+
+        btn.disabled = true;
+        btn.textContent = 'Registering...';
+        statusDiv.textContent = "Processing registration...";
+        statusDiv.className = "status-message loading";
+
+        try {
+            const response = await fetch('/api/complete-registration', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+
+            if (result.success) {
+                statusDiv.textContent = "✅ " + result.message;
+                statusDiv.className = "status-message success";
+                setTimeout(() => window.location.href = '/users', 2000);
+            } else {
+                statusDiv.textContent = "❌ " + result.message;
+                statusDiv.className = "status-message error";
+                btn.disabled = false;
+                btn.textContent = 'Complete Registration';
+            }
+        } catch (err) {
+            statusDiv.textContent = "❌ Network Error: " + err;
+            statusDiv.className = "status-message error";
+            btn.disabled = false;
+            btn.textContent = 'Complete Registration';
+        }
+    });
+</script>
+{% endblock %}
