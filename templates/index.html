@@ -5,78 +5,87 @@
 {% endblock %}
 
 {% block content %}
-<div class="kiosk-container">
-    <!-- Left: Video Feed -->
-    <div class="video-section">
-        <div class="video-card">
-            <img src="/video_feed" alt="Live Verification Feed" class="live-feed">
+<div class="kiosk-wrapper">
+    <!-- Header -->
+    <header class="kiosk-header">
+        <div class="kiosk-branding">
+            <img src="{{ url_for('static', path='images/logo.png') }}" alt="Logo" class="kiosk-logo">
+            <div class="kiosk-org-name">RAQAMLI TEXNOLOGIYALAR VA SUN'IY INTELLEKTNI<br>RIVOJLANTIRISH ILMIY-TADQIQOT
+                INSTITUTI</div>
+        </div>
+    </header>
+
+    <div class="kiosk-main">
+        <!-- Left: Video Feed -->
+        <div class="video-section">
+            <div class="video-card">
+                <img src="/video_feed" alt="Live Verification Feed" class="live-feed">
+            </div>
+
+            <div class="system-status-bar">
+                <div class="status-indicator">
+                    <span class="status-dot" id="connectionDot"></span>
+                    <span id="connectionStatus">System Active</span>
+                </div>
+                <div class="user-count">
+                    👥 Active Users: {{ active_users_count or 0 }}
+                </div>
+            </div>
         </div>
 
-        <div class="system-status-bar">
-            <div class="status-indicator">
-                <span class="dot" id="connectionDot"></span>
-                <span id="connectionStatus">System Active</span>
-            </div>
-            <div class="user-count">
-                Active Users: {{ active_users_count or 0 }}
-            </div>
-        </div>
-    </div>
-
-    <!-- Right: Single User Info Panel -->
-    <div class="info-section">
-        <div class="info-card-container" id="infoCardContainer">
-            <!-- Default State -->
-            <div class="waiting-state" id="waitingState">
-                <div class="waiting-icon">
+        <!-- Right: User Info Panel -->
+        <div class="info-section">
+            <div class="info-card-container" id="infoCardContainer">
+                <!-- Default State -->
+                <div class="waiting-state" id="waitingState">
                     <div class="scan-animation">
-                        <div class="scan-frame"></div>
-                        <div class="scan-line"></div>
-                    </div>
-                </div>
-                <h3>Ready to Scan</h3>
-                <p>Look at the camera to verify</p>
-            </div>
-
-            <!-- Verified State (Hidden initially) -->
-            <div class="verified-state hidden" id="verifiedState">
-                <div class="verified-header">
-                    <div class="v-icon">✓</div>
-                    <h2>Verified</h2>
-                </div>
-
-                <div class="user-profile">
-                    <!-- Placeholder avatar or initals -->
-                    <div class="avatar-circle" id="userInitial">U</div>
-                    <h1 id="userName">User Name</h1>
-                </div>
-
-                <div class="time-stats">
-                    <div class="stat-row">
-                        <span class="label">Status</span>
-                        <span class="value badge-in" id="userStatus">CHECK IN</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="label">Time</span>
-                        <span class="value time-big" id="eventTime">09:00 AM</span>
-                    </div>
-
-                    <!-- Extra stats for Check Out -->
-                    <div id="checkoutStats" class="hidden">
-                        <hr class="divider">
-                        <div class="stat-row">
-                            <span class="label">Check In</span>
-                            <span class="value" id="checkInTime">-</span>
-                        </div>
-                        <div class="stat-row">
-                            <span class="label">Working Hours</span>
-                            <span class="value highlight" id="workingHours">-</span>
+                        <div class="scan-frame">
+                            <div class="scan-line"></div>
                         </div>
                     </div>
+                    <h3>Ready to Scan</h3>
+                    <p>Look at the camera to verify</p>
                 </div>
 
-                <div class="greeting-msg">
-                    Verify complete. Thank you!
+                <!-- Verified State -->
+                <div class="verified-state hidden" id="verifiedState">
+                    <div class="verified-header">
+                        <div class="v-icon">✓</div>
+                        <h2>Verified</h2>
+                    </div>
+
+                    <div class="user-profile">
+                        <div class="avatar-circle" id="userInitial">U</div>
+                        <h1 id="userName">User Name</h1>
+                    </div>
+
+                    <div class="time-stats">
+                        <div class="stat-row">
+                            <span class="stat-label">Status</span>
+                            <span class="stat-value badge-in" id="userStatus">CHECK IN</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Time</span>
+                            <span class="stat-value time-big" id="eventTime">09:00 AM</span>
+                        </div>
+
+                        <!-- Extra stats for Check Out -->
+                        <div id="checkoutStats" class="hidden">
+                            <div class="stat-divider"></div>
+                            <div class="stat-row">
+                                <span class="stat-label">Check In</span>
+                                <span class="stat-value" id="checkInTime">-</span>
+                            </div>
+                            <div class="stat-row">
+                                <span class="stat-label">Working Hours</span>
+                                <span class="stat-value stat-highlight" id="workingHours">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="greeting-msg">
+                        Verify complete. Thank you!
+                    </div>
                 </div>
             </div>
         </div>
@@ -84,14 +93,9 @@
 </div>
 
 <style>
-    /* Kiosk Layout */
+    /* Kiosk Overrides */
     body {
-        margin: 0;
-        background: #ffffff;
-        /* Explicitly White */
-        color: #333;
         overflow: hidden;
-        font-family: 'Segoe UI', sans-serif;
     }
 
     .container {
@@ -101,26 +105,61 @@
         height: 100vh;
     }
 
-    .kiosk-container {
+    .kiosk-wrapper {
         display: flex;
+        flex-direction: column;
         height: 100vh;
         width: 100vw;
-        background: #ffffff;
+        background: var(--bg-white);
+    }
+
+    .kiosk-header {
+        padding: 20px 40px;
+        background: white;
+        border-bottom: 1px solid var(--border-color);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        z-index: 10;
+        flex-shrink: 0;
+    }
+
+    .kiosk-branding {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        justify-content: center;
+    }
+
+    .kiosk-logo {
+        height: 50px;
+        width: auto;
+    }
+
+    .kiosk-org-name {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-dark);
+        line-height: 1.25;
+        text-transform: uppercase;
+        max-width: 600px;
+        text-align: left;
+    }
+
+    .kiosk-main {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
     }
 
     /* Left Section: Video */
     .video-section {
         flex: 2;
-        /* 66% width */
-        background: #ffffff;
-        /* White background */
+        background: var(--bg-white);
         display: flex;
         flex-direction: column;
         justify-content: center;
         align-items: center;
         padding: 40px;
-        position: relative;
-        border-right: 1px solid #f0f0f0;
+        border-right: 1px solid var(--border-color);
     }
 
     .video-card {
@@ -130,9 +169,7 @@
         background: #000;
         border-radius: 24px;
         overflow: hidden;
-        position: relative;
-        box-shadow: 0 30px 60px rgba(0, 0, 0, 0.15);
-        /* Soft shadow */
+        box-shadow: var(--shadow-xl);
     }
 
     .live-feed {
@@ -142,34 +179,39 @@
     }
 
     .system-status-bar {
-        margin-top: 30px;
+        margin-top: 28px;
         width: 100%;
         max-width: 1100px;
         display: flex;
         justify-content: space-between;
         padding: 0 10px;
-        color: #888;
+        color: var(--text-light);
         font-size: 0.9rem;
     }
 
     .status-indicator {
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 10px;
     }
 
-    .dot {
-        width: 8px;
-        height: 8px;
-        background: #00e676;
+    .status-dot {
+        width: 10px;
+        height: 10px;
+        background: var(--accent-green);
         border-radius: 50%;
+        box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    .status-dot.offline {
+        background: var(--accent-red);
+        box-shadow: 0 0 8px var(--accent-red);
     }
 
     /* Right Section: Info Panel */
     .info-section {
         flex: 1;
-        /* 33% width */
-        background: #ffffff;
+        background: var(--bg-white);
         display: flex;
         align-items: center;
         justify-content: center;
@@ -189,45 +231,80 @@
     /* Waiting State */
     .waiting-state {
         text-align: center;
-        color: #aaa;
-        animation: fadeIn 0.5s ease;
-    }
-
-    .waiting-icon {
-        margin-bottom: 20px;
-    }
-
-    .rotating-loader {
-        transform-origin: center;
-        animation: rotate 2s linear infinite;
-    }
-
-    @keyframes rotate {
-        100% {
-            transform: rotate(360deg);
-        }
+        color: var(--text-light);
     }
 
     .waiting-state h3 {
         margin: 0;
         font-weight: 600;
-        color: #888;
+        color: var(--text-medium);
     }
 
     .waiting-state p {
         margin: 8px 0 0;
-        font-size: 0.9rem;
+        font-size: 0.95rem;
+    }
+
+    /* Scan Animation */
+    .scan-animation {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 24px;
+    }
+
+    .scan-frame {
+        width: 100%;
+        height: 100%;
+        border: 3px solid var(--border-color);
+        border-radius: 16px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .scan-line {
+        position: absolute;
+        top: 10%;
+        left: 10%;
+        right: 10%;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, var(--primary), transparent);
+        box-shadow: 0 0 12px var(--primary);
+        animation: scanning 2s ease-in-out infinite;
+        border-radius: 2px;
+    }
+
+    @keyframes scanning {
+        0% {
+            top: 10%;
+            opacity: 0;
+        }
+
+        15% {
+            opacity: 1;
+        }
+
+        50% {
+            top: 90%;
+        }
+
+        85% {
+            opacity: 1;
+        }
+
+        100% {
+            top: 10%;
+            opacity: 0;
+        }
     }
 
     /* Verified State */
     .verified-state {
-        background: #fff;
+        background: var(--bg-white);
         padding: 40px;
-        border-radius: 30px;
-        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
-        /* Subtle card shadow */
+        border-radius: 28px;
+        box-shadow: var(--shadow-lg);
         text-align: center;
-        border: 1px solid #f5f5f5;
+        border: 1px solid var(--border-color);
         animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
@@ -247,36 +324,37 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 10px;
-        margin-bottom: 30px;
-        color: #00c853;
+        gap: 12px;
+        margin-bottom: 28px;
+        color: var(--accent-green);
     }
 
     .v-icon {
-        width: 32px;
-        height: 32px;
-        background: #00c853;
+        width: 36px;
+        height: 36px;
+        background: var(--accent-green);
         color: white;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: bold;
+        font-size: 1.2rem;
     }
 
     .verified-header h2 {
         margin: 0;
-        font-size: 1.5rem;
+        font-size: 1.6rem;
         font-weight: 700;
     }
 
     .avatar-circle {
-        width: 80px;
-        height: 80px;
-        background: #e3f2fd;
-        color: #1565c0;
-        font-size: 2.5rem;
-        font-weight: bold;
+        width: 90px;
+        height: 90px;
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: white;
+        font-size: 2.8rem;
+        font-weight: 700;
         border-radius: 50%;
         display: flex;
         align-items: center;
@@ -285,17 +363,17 @@
     }
 
     .user-profile h1 {
-        margin: 0 0 40px 0;
-        font-size: 2.2rem;
-        color: #2c3e50;
+        margin: 0 0 36px 0;
+        font-size: 2rem;
+        color: var(--text-dark);
         line-height: 1.2;
     }
 
     .time-stats {
-        background: #fafafa;
-        padding: 25px;
+        background: var(--bg-primary);
+        padding: 24px;
         border-radius: 20px;
-        margin-bottom: 25px;
+        margin-bottom: 24px;
     }
 
     .stat-row {
@@ -309,117 +387,55 @@
         margin-bottom: 0;
     }
 
-    .divider {
-        border: 0;
-        border-top: 1px solid #eee;
-        margin: 15px 0;
+    .stat-divider {
+        height: 1px;
+        background: var(--border-color);
+        margin: 16px 0;
     }
 
-    .label {
+    .stat-label {
         font-size: 0.95rem;
-        color: #888;
+        color: var(--text-light);
         font-weight: 500;
     }
 
-    .value {
+    .stat-value {
         font-size: 1.1rem;
         font-weight: 700;
-        color: #333;
+        color: var(--text-dark);
     }
 
     .time-big {
-        font-size: 1.4rem;
+        font-size: 1.5rem;
     }
 
     .badge-in {
-        background: #e8f5e9;
-        color: #2e7d32;
-        padding: 4px 12px;
+        background: #dcfce7;
+        color: #166534;
+        padding: 6px 14px;
         border-radius: 12px;
         font-size: 0.9rem;
     }
 
     .badge-out {
-        background: #e3f2fd;
-        color: #1565c0;
-        padding: 4px 12px;
+        background: #dbeafe;
+        color: #1d4ed8;
+        padding: 6px 14px;
         border-radius: 12px;
         font-size: 0.9rem;
     }
 
-    .highlight {
-        color: #0288d1;
+    .stat-highlight {
+        color: var(--primary);
     }
 
     .greeting-msg {
-        color: #aaa;
-        font-size: 0.9rem;
+        color: var(--text-light);
+        font-size: 0.95rem;
     }
 
     .hidden {
         display: none !important;
-    }
-
-    @keyframes fadeIn {
-        from {
-            opacity: 0;
-        }
-
-        to {
-            opacity: 1;
-        }
-    }
-
-    /* Scanning Animation */
-    .scan-animation {
-        width: 60px;
-        height: 60px;
-        position: relative;
-        margin: 0 auto;
-    }
-
-    .scan-frame {
-        width: 100%;
-        height: 100%;
-        border: 2px solid #e0e0e0;
-        border-radius: 12px;
-        position: relative;
-    }
-
-    .scan-line {
-        position: absolute;
-        top: 10%;
-        left: 10%;
-        right: 10%;
-        height: 2px;
-        background: #00e676;
-        box-shadow: 0 0 8px rgba(0, 230, 118, 0.5);
-        animation: scanning 2s ease-in-out infinite;
-        border-radius: 1px;
-    }
-
-    @keyframes scanning {
-        0% {
-            top: 15%;
-            opacity: 0;
-        }
-
-        15% {
-            opacity: 1;
-        }
-
-        50% {
-            top: 85%;
-        }
-
-        85% {
-            opacity: 1;
-        }
-
-        100% {
-            top: 15%;
-            opacity: 0;
-        }
     }
 </style>
 {% endblock %}
@@ -432,7 +448,6 @@
     const waitingState = document.getElementById('waitingState');
     const verifiedState = document.getElementById('verifiedState');
 
-    // UI Elements
     const elName = document.getElementById('userName');
     const elInitial = document.getElementById('userInitial');
     const elStatus = document.getElementById('userStatus');
@@ -440,19 +455,21 @@
     const elCheckoutStats = document.getElementById('checkoutStats');
     const elCheckInTime = document.getElementById('checkInTime');
     const elWorkingHours = document.getElementById('workingHours');
+    const connectionDot = document.getElementById('connectionDot');
+    const connectionStatus = document.getElementById('connectionStatus');
 
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
         ws.onopen = () => {
-            document.getElementById('connectionDot').style.background = '#00e676';
-            document.getElementById('connectionStatus').textContent = 'System Online';
+            connectionDot.classList.remove('offline');
+            connectionStatus.textContent = 'System Online';
         };
 
         ws.onclose = () => {
-            document.getElementById('connectionDot').style.background = '#f44336';
-            document.getElementById('connectionStatus').textContent = 'Offline';
+            connectionDot.classList.add('offline');
+            connectionStatus.textContent = 'Offline - Reconnecting...';
             setTimeout(connectWS, 3000);
         };
 
@@ -462,7 +479,6 @@
         };
     }
 
-    // Audio
     const audioVerify = new Audio('/static/audio/thank_you.mp3');
 
     async function playVerifySound() {
@@ -471,19 +487,17 @@
             await audioVerify.play();
         } catch (err) {
             console.warn("Autoplay blocked:", err);
-            // Show hint if blocked
             let existingToast = document.getElementById('audio-toast');
             if (!existingToast) {
                 const toast = document.createElement('div');
                 toast.id = 'audio-toast';
                 toast.innerHTML = "🔊 Click screen to enable sound";
-                toast.style.cssText = "position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.8); color:#fff; padding:12px 24px; border-radius:30px; z-index:9999; cursor:pointer; font-weight:bold; animation: fadeIn 0.5s;";
+                toast.style.cssText = "position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; padding:14px 28px; border-radius:30px; z-index:9999; cursor:pointer; font-weight:600;";
                 toast.onclick = () => {
                     audioVerify.play();
                     toast.remove();
                 };
                 document.body.appendChild(toast);
-                // Auto remove after 10s if ignored
                 setTimeout(() => { if (toast.parentNode) toast.remove(); }, 10000);
             }
         }
@@ -492,52 +506,33 @@
     function showUserVerification(data) {
         if (!data.name || data.name === "Unknown") return;
 
-        // Play Sound
         playVerifySound();
 
-        // Populate Data
         elName.textContent = data.name;
         elInitial.textContent = data.name.charAt(0).toUpperCase();
 
-        // Status & Color
         if (data.status === 'check_in') {
             elStatus.textContent = 'CHECK IN';
-            elStatus.className = 'value badge-in';
+            elStatus.className = 'stat-value badge-in';
             elCheckoutStats.classList.add('hidden');
         } else {
             elStatus.textContent = 'CHECK OUT';
-            elStatus.className = 'value badge-out';
+            elStatus.className = 'stat-value badge-out';
             elCheckoutStats.classList.remove('hidden');
-
-            // Populate extra stats
-            if (data.working_time) {
-                elWorkingHours.textContent = data.working_time;
-            } else {
-                elWorkingHours.textContent = "Calc...";
-            }
-            if (data.check_in_time) {
-                elCheckInTime.textContent = data.check_in_time;
-            } else {
-                elCheckInTime.textContent = "--:--";
-            }
+            elWorkingHours.textContent = data.working_time || "Calculating...";
+            elCheckInTime.textContent = data.check_in_time || "--:--";
         }
 
-        // Time
-        // The event has timestamp "HH:MM:SS". Format simply
         elTime.textContent = data.timestamp;
 
-        // Show UI
         waitingState.classList.add('hidden');
         verifiedState.classList.remove('hidden');
 
-        // Clear previous timer if valid
         if (timer) clearTimeout(timer);
 
-        // Set new timer to revert after 3 seconds
         timer = setTimeout(() => {
             verifiedState.classList.add('hidden');
             waitingState.classList.remove('hidden');
-            /* Optional: Simple fade out logic could be added */
         }, 4000);
     }
 

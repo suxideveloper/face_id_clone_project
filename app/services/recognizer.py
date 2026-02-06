@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import cv2
 from app.core.config import settings
+from app.services.detector import detector  # Import YOLO detector
 
 class FaceRecognizer:
     def __init__(self):
@@ -81,17 +82,33 @@ class FaceRecognizer:
         for i, img in enumerate(images):
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             
+            # Try standard face_recognition detection (HOG/CNN)
             boxes = face_recognition.face_locations(rgb_img)
             
+            # Fallback to YOLO if standard method fails
+            if not boxes:
+                # print(f"Warning: Standard detection failed for {name} image {i}, trying YOLO...")
+                detections = detector.detect(img)
+                if detections:
+                    # Use the first/best detection
+                    # YOLO returns (x1, y1, x2, y2), face_recognition needs (top, right, bottom, left)
+                    x1, y1, x2, y2 = detections[0][0]
+                    boxes = [(y1, x2, y2, x1)]
+
             if boxes:
-                # Compute encoding
-                encoding = face_recognition.face_encodings(rgb_img, boxes)[0]
-                user_encodings.append(encoding)
-                
-                # Save image
-                file_path = os.path.join(user_dir, f"{name}_{i}.jpg")
-                cv2.imwrite(file_path, img)
-                saved_count += 1
+                try:
+                    # Compute encoding
+                    encoding = face_recognition.face_encodings(rgb_img, boxes)[0]
+                    user_encodings.append(encoding)
+                    
+                    # Save image
+                    file_path = os.path.join(user_dir, f"{name}_{i}.jpg")
+                    cv2.imwrite(file_path, img)
+                    saved_count += 1
+                except Exception as e:
+                    print(f"Error encoding image {i} for {name}: {e}")
+            else:
+                print(f"Error: No face found in image {i} for {name} even with fallback.")
         
         if user_encodings:
             # Store ALL encodings for this user (not averaged)

@@ -340,38 +340,185 @@ async def admin_dashboard(request: Request):
     
     # Calculate Attendance Percentage (vs Total Employees)
     attendance_rate = 0
+    present_count = 0
+    late_count = 0
+    on_time_count = 0
+    absent_count = 0
+    
     if total_employees > 0:
         # Get unique workers today
         today_records = attendance_db.get_all_today()
-        today_count = len(today_records)
-        attendance_rate = int((today_count / total_employees) * 100)
+        present_count = len(today_records)
+        attendance_rate = int((present_count / total_employees) * 100)
+        
+        # Calculate On Time vs Late (Assume 9:00 AM start time)
+        # We need to parse check_in_time for each record
+        for name, record in today_records.items():
+            check_in_str = record.get("check_in_time")
+            if check_in_str:
+                try:
+                    check_in_dt = datetime.fromisoformat(check_in_str)
+                    # Create 9 AM threshold for that day
+                    nine_am = check_in_dt.replace(hour=9, minute=0, second=0, microsecond=0)
+                    
+                    if check_in_dt > nine_am:
+                        late_count += 1
+                    else:
+                        on_time_count += 1
+                except ValueError:
+                    pass
+        
+        absent_count = total_employees - present_count
+
+    # 3. Growth (Today vs Yesterday)
+    yesterday_date = (today_date - timedelta(days=1)).isoformat()
+    yesterday_records = attendance_db.get_records_by_date(yesterday_date)
+    yesterday_count = len(yesterday_records)
+    
+    attendance_growth = 0
+    if yesterday_count > 0:
+        attendance_growth = int(((present_count - yesterday_count) / yesterday_count) * 100)
+    elif present_count > 0:
+        attendance_growth = 100 # moved from 0 to something
         
     return templates.TemplateResponse("admin.html", {
         "request": request, 
         "user": user,
         "total_employees": total_employees,
-        "weekly_attendance": weekly_attendance,
-        "monthly_attendance": monthly_attendance,
-        "attendance_rate": attendance_rate
+        "stats": {
+            "present": present_count,
+            "late": late_count,
+            "on_time": on_time_count,
+            "absent": absent_count,
+            "attendance_rate": attendance_rate,
+            "weekly_total": weekly_attendance,
+            "monthly_total": monthly_attendance,
+            "growth": attendance_growth
+        }
     })
 
 @router.get("/api/dashboard/stats")
 async def get_dashboard_stats():
     """API endpoint to provide JSON data for dashboard charts."""
     
-    # 1. Daily Trends (Last 7 Days)
-    dates = []
-    counts = []
     today = datetime.now().date()
     
-    for i in range(6, -1, -1):
-        d = today - timedelta(days=i)
+    # helper to process a date range
+    def get_period_stats(days_count, period_label):
+        dates = []
+        counts = []
+        
+        # Current Period Data
+        current_period_counts = []
+        
+        for i in range(days_count - 1, -1, -1):
+            d = today - timedelta(days=i)
+            # Format: Weekly uses "Mon", Monthly uses "Oct 01"
+            if period_label == "weekly":
+                dates.append(d.strftime("%a"))
+            else:
+                dates.append(d.strftime("%b %d"))
+                
+            d_str = d.isoformat()
+            records = attendance_db.get_records_by_date(d_str)
+            count = len(records)
+            counts.append(count)
+            current_period_counts.append((d.strftime("%A"), count)) # Store day name for peak calc
+            
+        # Previous Period Data (for trend)
+        prev_period_total = 0
+        for i in range(days_count * 2 - 1, days_count - 1, -1):
+            d = today - timedelta(days=i)
+            records = attendance_db.get_records_by_date(d.isoformat())
+            prev_period_total += len(records)
+            
+        # Metrics Calculation
+        current_total = sum(counts)
+        avg = round(current_total / days_count, 1) if days_count > 0 else 0
+        
+        # Trend %
+        trend = 0
+        if prev_period_total > 0:
+            change = current_total - prev_period_total
+            trend = round((change / prev_period_total) * 100, 1)
+        elif current_total > 0:
+            trend = 100 # 100% growth from 0
+            
+        # Peak Day
+        peak_day = "N/A"
+        if current_period_counts:
+            # Find max count
+            max_val = max(counts)
+            if max_val > 0:
+                # Find first day with max_val
+                for name, val in current_period_counts:
+                    if val == max_val:
+                        peak_day = name
+                        break
+                        
+        return {
+            "labels": dates,
+            "data": counts,
+            "statistics": {
+                "average": avg,
+                "total": current_total,
+                "trend": trend,
+                "peak_day": peak_day
+            }
+        }
+
+    # 1. Weekly Stats (Current Week: Mon -> Sun)
+    # weekly_stats = get_period_stats(7, "weekly") 
+    # Custom logic for standard week
+    weekly_dates = []
+    weekly_counts = []
+    weekly_period_counts = []
+    
+    start_of_week = today - timedelta(days=today.weekday()) # Monday
+    
+    for i in range(7):
+        d = start_of_week + timedelta(days=i)
+        weekly_dates.append(d.strftime("%a")) # Mon, Tue...
+        
+        # Only fetch data if d <= today (future days are 0)
+        # Actually user might want to see 0 for future days, which is fine
         d_str = d.isoformat()
         records = attendance_db.get_records_by_date(d_str)
-        dates.append(d.strftime("%b %d")) # e.g. "Oct 01"
-        counts.append(len(records))
+        count = len(records)
+        weekly_counts.append(count)
+        weekly_period_counts.append((d.strftime("%A"), count))
         
-    # 2. Department Distribution
+    # Calculate stats for the partial/full week
+    weekly_total = sum(weekly_counts)
+    # Average based on days passed so far in the week (or 7? usually 7 for standard view, or days passed)
+    # Let's use 7 to keep the chart scale consistent, or maybe just days passed?
+    # For now simply:
+    weekly_avg = round(weekly_total / 7, 1)
+    
+    weekly_stats = {
+        "labels": weekly_dates,
+        "data": weekly_counts,
+        "statistics": {
+            "average": weekly_avg,
+            "total": weekly_total,
+            "trend": 0, # Complex to calc trend vs last week matching days, setting 0 for now or simple diff
+            "peak_day": "N/A"
+        }
+    }
+    
+    # Calculate Peak Day
+    if weekly_period_counts:
+        max_val = max(weekly_counts)
+        if max_val > 0:
+            for name, val in weekly_period_counts:
+                if val == max_val:
+                    weekly_stats["statistics"]["peak_day"] = name
+                    break
+    
+    # 2. Monthly Stats (Last 30 Days)
+    monthly_stats = get_period_stats(30, "monthly")
+        
+    # 3. Department Distribution (Existing)
     users = user_db.get_all_users()
     dept_counts = {}
     for uid, udata in users.items():
@@ -379,13 +526,127 @@ async def get_dashboard_stats():
         dept_counts[dept] = dept_counts.get(dept, 0) + 1
         
     return JSONResponse({
-        "trends": {
-            "labels": dates,
-            "data": counts
+        "stats": {
+            "weekly": weekly_stats,
+            "monthly": monthly_stats
         },
         "distribution": {
             "labels": list(dept_counts.keys()),
             "data": list(dept_counts.values())
+        }
+    })
+
+@router.get("/api/users/{name}/attendance-stats")
+async def get_user_attendance_stats(name: str):
+    """API endpoint for individual employee attendance statistics."""
+    today = datetime.now().date()
+    
+    # Weekly stats (Current Week: Mon -> Sun)
+    weekly_labels = []
+    weekly_hours = []
+    
+    start_of_week = today - timedelta(days=today.weekday()) # Monday
+    
+    for i in range(7):
+        d = start_of_week + timedelta(days=i)
+        d_str = d.isoformat()
+        weekly_labels.append(d.strftime("%a"))  # Mon, Tue, etc.
+        
+        records = attendance_db.get_records_by_date(d_str)
+        user_record = records.get(name)
+        
+        if user_record:
+            check_in = user_record.get("check_in_time")
+            check_out = user_record.get("check_out_time")
+            
+            hours = 0
+            if check_in and check_out:
+                try:
+                    start = datetime.fromisoformat(check_in)
+                    end = datetime.fromisoformat(check_out)
+                    duration = end - start
+                    seconds = duration.total_seconds()
+                    hours = round(seconds / 3600, 1)
+                except ValueError:
+                    pass
+            elif check_in and not check_out and d == today:
+                 # If currently checked in today, calculate approximate hours until now
+                 try:
+                    start = datetime.fromisoformat(check_in)
+                    now = datetime.now()
+                    duration = now - start
+                    seconds = duration.total_seconds()
+                    hours = round(seconds / 3600, 1)
+                 except ValueError:
+                    pass
+
+            weekly_hours.append(hours)
+        else:
+            weekly_hours.append(0)
+    
+    # Monthly stats (last 4 weeks)
+    monthly_labels = ["Week 1", "Week 2", "Week 3", "Week 4"]
+    monthly_hours = []
+    
+    for week in range(4):
+        # Calculate week range (reverse order, Week 4 is current week, Week 1 is 3 weeks ago)
+        # Actually standard charts usually show Week 1 as oldest. Let's fix loop.
+        # Let's verify requirements. User wants monthly stats.
+        # Standard: Week 1 (Oldest) -> Week 4 (Newest/Current)
+        
+        week_end_date = today - timedelta(days=(3 - week) * 7) 
+        week_start_date = week_end_date - timedelta(days=6)
+        
+        week_total = 0
+        
+        for day in range(7):
+            d = week_start_date + timedelta(days=day)
+            d_str = d.isoformat()
+            records = attendance_db.get_records_by_date(d_str)
+            user_record = records.get(name)
+            
+            if user_record:
+                check_in = user_record.get("check_in_time")
+                check_out = user_record.get("check_out_time")
+                
+                hours = 0
+                if check_in and check_out:
+                    try:
+                        start = datetime.fromisoformat(check_in)
+                        end = datetime.fromisoformat(check_out)
+                        seconds = (end - start).total_seconds()
+                        hours = seconds / 3600
+                    except ValueError: pass
+                elif check_in and not check_out and d == today:
+                     # Calculate pending hours for today
+                     try:
+                        start = datetime.fromisoformat(check_in)
+                        seconds = (datetime.now() - start).total_seconds()
+                        hours = seconds / 3600
+                     except ValueError: pass
+
+                week_total += hours
+        
+        monthly_hours.append(round(week_total, 1))
+    
+    # Summary stats
+    total_days_present = sum(1 for h in weekly_hours if h > 0)
+    total_weekly_hours = sum(weekly_hours)
+    total_monthly_hours = sum(monthly_hours)
+    
+    return JSONResponse({
+        "weekly": {
+            "labels": weekly_labels,
+            "data": weekly_hours
+        },
+        "monthly": {
+            "labels": monthly_labels,
+            "data": monthly_hours
+        },
+        "summary": {
+            "days_present_this_week": total_days_present,
+            "total_weekly_hours": round(total_weekly_hours, 1),
+            "total_monthly_hours": round(total_monthly_hours, 1)
         }
     })
 

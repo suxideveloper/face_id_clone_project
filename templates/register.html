@@ -1,20 +1,22 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="monitor">
-    <h1>Register New Employee</h1>
+<div class="page-header">
+    <h1>Yangi xodimni ro'yxatdan o'tkazish</h1>
+</div>
 
-    <div class="registration-container">
-        <!-- Step 1: Face Capture Section -->
-        <div class="capture-section" id="captureSection">
-            <div class="section-header">
+<div class="registration-grid">
+    <!-- Step 1: Face Capture -->
+    <div class="card capture-card">
+        <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
                 <span class="step-badge">Step 1</span>
-                <h2>Capture Face Images</h2>
+                <h2>Rasmni yuklash</h2>
             </div>
-
+        </div>
+        <div class="card-body">
             <div class="video-wrapper">
                 <img src="/video_feed?mode=registration" alt="Video Feed" id="videoFeed">
-                <!-- Pose Progress Indicator -->
                 <div class="pose-progress" id="poseProgress">
                     <div class="pose-step" data-step="1">①</div>
                     <div class="pose-step" data-step="2">②</div>
@@ -25,164 +27,154 @@
             </div>
 
             <div class="pose-instructions" id="poseInstructions">
-                Enter a username and click "Start Capture" to begin
+                Username (ID) ni kiriting va "Boshlash" tugmasini bosing
             </div>
 
-            <!-- Username input for capture -->
             <div class="capture-controls">
-                <div class="username-input-group">
+                <div class="form-group" style="flex: 1; margin-bottom: 0;">
                     <label for="captureUsername">Username (ID)*</label>
-                    <input type="text" id="captureUsername" placeholder="e.g., john_doe" required>
+                    <input type="text" id="captureUsername" placeholder="Username (ID)" required>
                 </div>
-                <button type="button" id="startCaptureBtn" class="btn-capture" onclick="startCapture()">
-                    📸 Start Capture
+                <button type="button" id="startCaptureBtn" class="btn btn-capture" onclick="startCapture()">
+                    Boshlash
                 </button>
             </div>
 
-            <div id="captureStatus" class="status-message"></div>
+            <div id="captureStatus" class="status-message" style="display: none;"></div>
         </div>
+    </div>
 
-        <!-- Step 2: Form Section (Initially Disabled) -->
-        <div class="form-section" id="formSection">
-            <div class="section-header">
+    <!-- Step 2: Employee Details -->
+    <div class="card form-card">
+        <div class="card-header">
+            <div style="display: flex; align-items: center; gap: 12px;">
                 <span class="step-badge step-pending" id="step2Badge">Step 2</span>
-                <h2>Employee Details</h2>
+                <h2>Xodim ma'lumotlari</h2>
             </div>
-
-            <form id="registerForm" class="register-form">
+        </div>
+        <div class="card-body">
+            <form id="registerForm">
                 <input type="hidden" id="hiddenName" name="name" value="">
 
                 <div class="form-group">
                     <label>Username (ID)</label>
-                    <input type="text" id="displayUsername" disabled class="disabled-input">
+                    <input type="text" id="displayUsername" disabled class="locked-input">
                     <small>Captured in Step 1</small>
                 </div>
 
                 <div class="form-group">
-                    <label for="full_name">Full Name</label>
-                    <input type="text" id="full_name" name="full_name" placeholder="e.g., John Doe" disabled>
+                    <label for="full_name">Ism Familiya</label>
+                    <input type="text" id="full_name" name="full_name" placeholder="Ism Familiya" disabled>
                 </div>
 
                 <div class="form-group">
-                    <label for="phone">Phone Number</label>
-                    <input type="tel" id="phone" name="phone" placeholder="e.g., +998 90 123 45 67" disabled>
+                    <label for="phone">Telefon raqam</label>
+                    <input type="tel" id="phone" name="phone" placeholder="Telefon raqam" disabled>
                 </div>
 
                 <div class="form-group">
-                    <label for="department">Department</label>
+                    <label for="department">Bo'lim</label>
                     <select id="department" name="department" disabled>
-                        <option value="">Select Department</option>
-                        <option value="IT">IT</option>
-                        <option value="HR">Human Resources</option>
-                        <option value="Finance">Finance</option>
-                        <option value="Marketing">Marketing</option>
-                        <option value="Operations">Operations</option>
-                        <option value="Security">Security</option>
-                        <option value="Management">Management</option>
+                        <option value="">Bo'limni tanlang</option>
+                        <option value="rahbariyat">Rahbariyat</option>
+                        <option value="buxgalteriya">Buxgalteriya</option>
+                        <option value="HR">Xodimlar bilan ishlash bo'limi</option>
+                        <option value="mutaxassislar">Mutaxassislar</option>
+                        <option value="biometrik tizimlar labaratoriyasi">Biometrik tizimlar labaratoriyasi</option>
+                        <option value="Intelektual dastury tizimlar qo'shma labaratoriyasi">Intelektual dastury tizimlar qo'shma
+                            labaratoriyasi</option>
+                        <option value="Timsollarni tanib olish labaratoriyasi">Timsollarni tanib olish labaratoriyasi</option>
+                        <option value="tabiy tilni qayta ishlash labaratoriyasi">Tabiiy tilni qayta ishlash labaratoriyasi</option>
+                        <option value="Murakkab tizimlarni modellashtirish labaratoriyasi">Murakkab tizimlarni modellashtirish
+                            labaratoriyasi</option>
+                        <option value="Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi">Sun'iy intelekt va mashinaviy o'qitish
+                            labaratoriyasi</option>
+                        <option value="Aqilli tizimlar va buyumlar interneti labaratoriyasi">Aqilli tizimlar va buyumlar interneti
+                            labaratoriyasi</option>
+                        <option value="Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi">Texnik tizimlarni
+                            boshqarish va raqamli loyhalash labaratoriyasi</option>
+                        <option value="Dasturiy mahsulotlarni ishlab chiqsh bo'limi">Dasturiy mahsulotlarni ishlab chiqsh bo'limi</option>
+                        <option value="Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi">Dasturiy mahsulotlarni sinovdan o'tkazish
+                            bo'limi</option>
+                        <option value="Dasturiy mahsulotlarni joriy etish bo'limi">Dasturiy mahsulotlarni joriy etish bo'limi</option>
+                        <option value="AKT startuplarni qo'llab quvvatlash bo'limi">AKT startuplarni qo'llab quvvatlash bo'limi</option>
+                        <option value="Patentlash va tijoratlashtirish bo'limi">Patentlash va tijor atlashtirish bo'limi</option>
+                        <option value="Umumiy bo'lim">Umumiy bo'lim</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label for="position">Position</label>
-                    <input type="text" id="position" name="position" placeholder="e.g., Software Engineer" disabled>
+                    <label for="position">Lavozim</label>
+                    <input type="text" id="position" name="position" placeholder="Lavozim" disabled>
                 </div>
 
-                <button type="submit" id="submitBtn" class="btn-primary" disabled>
-                    Complete Registration
+                <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%;" disabled>
+                    Ro'yxatdan o'tish
                 </button>
             </form>
 
-            <div id="formStatus" class="status-message"></div>
+            <div id="formStatus" class="status-message" style="display: none;"></div>
         </div>
-    </div>
-
-    <div style="margin-top: 30px; text-align: center;">
-        <a href="/" class="back-link">← Back to Verification</a>
     </div>
 </div>
 
+<div class="mt-6">
+    <a href="/" class="back-link">← Back to Verification</a>
+</div>
+
 <style>
-    .registration-container {
+    .registration-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 40px;
-        max-width: 1400px;
-        margin: 0 auto;
-        align-items: stretch;
+        gap: 28px;
+        align-items: start;
     }
 
     @media (max-width: 1000px) {
-        .registration-container {
+        .registration-grid {
             grid-template-columns: 1fr;
         }
     }
 
-    .section-header {
-        display: flex;
-        align-items: center;
-        gap: 15px;
-        margin-bottom: 20px;
-    }
-
-    .section-header h2 {
-        margin: 0;
-        color: #2c3e50;
-        font-size: 1.3rem;
-    }
-
     .step-badge {
-        background: linear-gradient(135deg, #0288d1, #26c6da);
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
         color: white;
         padding: 6px 14px;
         border-radius: 20px;
-        font-weight: bold;
+        font-weight: 600;
         font-size: 0.85rem;
     }
 
-    .step-pending {
-        background: #bdbdbd;
+    .step-badge.step-pending {
+        background: var(--text-light);
     }
 
-    .step-complete {
-        background: linear-gradient(135deg, #43a047, #66bb6a);
-    }
-
-    /* Capture Section */
-    .capture-section {
-        background: #fff;
-        padding: 25px;
-        border-radius: 16px;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-        display: flex;
-        flex-direction: column;
+    .step-badge.step-complete {
+        background: linear-gradient(135deg, var(--accent-green), #059669);
     }
 
     .video-wrapper {
         position: relative;
         background: #000;
-        border-radius: 12px;
+        border-radius: var(--radius-md);
         overflow: hidden;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        flex: 1;
-        min-height: 400px;
+        aspect-ratio: 4/3;
     }
 
     .video-wrapper img {
         width: 100%;
         height: 100%;
         object-fit: cover;
-        display: block;
     }
 
     .pose-progress {
         position: absolute;
-        top: 15px;
+        top: 12px;
         left: 50%;
         transform: translateX(-50%);
         display: flex;
         gap: 10px;
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.7);
         padding: 8px 16px;
         border-radius: 25px;
     }
@@ -194,13 +186,13 @@
     }
 
     .pose-step.active {
-        color: #ff9800;
+        color: var(--accent-orange);
         transform: scale(1.2);
         animation: pulse 1s infinite;
     }
 
     .pose-step.complete {
-        color: #4caf50;
+        color: var(--accent-green);
     }
 
     @keyframes pulse {
@@ -217,66 +209,30 @@
 
     .pose-instructions {
         text-align: center;
-        padding: 15px;
-        background: #f5f5f5;
-        border-radius: 8px;
-        margin-top: 15px;
-        font-size: 1rem;
-        color: #333;
+        padding: 14px;
+        background: var(--bg-primary);
+        border-radius: var(--radius-sm);
+        margin: 16px 0;
         font-weight: 500;
+        color: var(--text-medium);
     }
 
     .capture-controls {
-        margin-top: 20px;
         display: flex;
-        gap: 15px;
+        gap: 16px;
         align-items: flex-end;
     }
 
-    .username-input-group {
-        flex: 1;
-    }
-
-    .username-input-group label {
-        display: block;
-        margin-bottom: 8px;
-        color: #0277bd;
-        font-weight: 600;
-        font-size: 0.9rem;
-        text-align: left;
-        padding-left: 5px;
-    }
-
-    .username-input-group input {
-        width: 100%;
-        padding: 12px 15px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        font-size: 1rem;
-    }
-
-    .username-input-group input:focus {
-        outline: none;
-        border-color: #0288d1;
-        box-shadow: 0 0 0 3px rgba(2, 136, 209, 0.1);
-    }
-
     .btn-capture {
-        padding: 12px 28px;
-        background: linear-gradient(135deg, #ff9800, #ffb74d);
+        background: linear-gradient(135deg, var(--accent-orange), #d97706);
         color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
         white-space: nowrap;
+        padding: 12px 24px;
     }
 
     .btn-capture:hover:not(:disabled) {
         transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(255, 152, 0, 0.4);
+        box-shadow: 0 4px 15px rgba(249, 158, 11, 0.4);
     }
 
     .btn-capture:disabled {
@@ -284,130 +240,10 @@
         cursor: not-allowed;
     }
 
-    /* Form Section */
-    .form-section {
-        background: #fff;
-        padding: 25px;
-        border-radius: 16px;
-        border: 1px solid #e0e0e0;
-        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    }
-
-    .register-form {
-        padding: 10px 0;
-    }
-
-    .form-group {
-        margin-bottom: 18px;
-        text-align: left;
-    }
-
-    .form-group label {
-        display: block;
-        margin-bottom: 8px;
-        color: #0277bd;
-        font-weight: 600;
-        font-size: 0.9rem;
-        padding-left: 5px;
-    }
-
-    .form-group input,
-    .form-group select {
-        width: 100%;
-        padding: 12px 15px;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        background: #fff;
-        color: #333;
-        font-size: 1rem;
-        transition: all 0.3s ease;
-    }
-
-    .form-group input:focus:not(:disabled),
-    .form-group select:focus:not(:disabled) {
-        outline: none;
-        border-color: #0288d1;
-        box-shadow: 0 0 0 3px rgba(2, 136, 209, 0.1);
-    }
-
-    .form-group input:disabled,
-    .form-group select:disabled {
-        background: #f5f5f5;
-        color: #999;
-        cursor: not-allowed;
-    }
-
-    .disabled-input {
-        background: #e8f5e9 !important;
-        color: #2e7d32 !important;
+    .locked-input {
+        background: #dcfce7 !important;
+        color: var(--accent-green) !important;
         font-weight: 500;
-    }
-
-    .form-group small {
-        display: block;
-        margin-top: 5px;
-        color: #888;
-        font-size: 0.8rem;
-        padding-left: 5px;
-    }
-
-    .btn-primary {
-        width: 100%;
-        padding: 14px;
-        background: linear-gradient(135deg, #0288d1, #26c6da);
-        color: white;
-        border: none;
-        border-radius: 8px;
-        font-size: 1rem;
-        font-weight: bold;
-        cursor: pointer;
-        transition: all 0.3s ease;
-        margin-top: 10px;
-    }
-
-    .btn-primary:hover:not(:disabled) {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 15px rgba(2, 136, 209, 0.4);
-    }
-
-    .btn-primary:disabled {
-        background: #bdbdbd;
-        cursor: not-allowed;
-    }
-
-    .status-message {
-        margin-top: 15px;
-        padding: 12px;
-        border-radius: 8px;
-        font-weight: 500;
-        text-align: center;
-    }
-
-    .status-message.success {
-        background: #e8f5e9;
-        color: #2e7d32;
-        border: 1px solid #a5d6a7;
-    }
-
-    .status-message.error {
-        background: #ffebee;
-        color: #c62828;
-        border: 1px solid #ef9a9a;
-    }
-
-    .status-message.loading {
-        background: #fff3e0;
-        color: #e65100;
-        border: 1px solid #ffcc80;
-    }
-
-    .back-link {
-        color: #666;
-        text-decoration: none;
-    }
-
-    .back-link:hover {
-        color: #0288d1;
     }
 </style>
 
@@ -438,12 +274,12 @@
 
         if (stage >= 0 && stage < 5) {
             instructions.textContent = poseInstructions[stage];
-            instructions.style.background = '#fff3e0';
-            instructions.style.color = '#e65100';
+            instructions.style.background = '#fef3c7';
+            instructions.style.color = '#b45309';
         } else if (stage >= 5) {
             instructions.textContent = "✅ All poses captured! Processing...";
-            instructions.style.background = '#e8f5e9';
-            instructions.style.color = '#2e7d32';
+            instructions.style.background = '#dcfce7';
+            instructions.style.color = '#166534';
         }
     }
 
@@ -454,9 +290,7 @@
             if (data.stage >= 0) {
                 updatePoseProgress(data.stage);
             }
-        } catch (e) {
-            // Silently fail
-        }
+        } catch (e) { }
     }
 
     async function startCapture() {
@@ -479,11 +313,10 @@
 
         statusDiv.textContent = "📸 Starting capture... Follow the pose instructions!";
         statusDiv.className = "status-message loading";
+        statusDiv.style.display = "block";
 
-        // Reset progress
         document.querySelectorAll('.pose-step').forEach(s => s.classList.remove('active', 'complete'));
 
-        // Start polling
         pollInterval = setInterval(pollRegistrationState, 300);
 
         try {
@@ -503,17 +336,15 @@
                 statusDiv.textContent = "✅ " + result.message;
                 statusDiv.className = "status-message success";
 
-                // Mark all steps complete
                 document.querySelectorAll('.pose-step').forEach(s => {
                     s.classList.remove('active');
                     s.classList.add('complete');
                 });
 
                 instructions.textContent = "✅ Face capture complete! Fill in the details.";
-                instructions.style.background = '#e8f5e9';
-                instructions.style.color = '#2e7d32';
+                instructions.style.background = '#dcfce7';
+                instructions.style.color = '#166534';
 
-                // Enable Step 2
                 enableFormSection(username);
             } else {
                 statusDiv.textContent = "❌ " + result.message;
@@ -523,8 +354,8 @@
                 usernameInput.disabled = false;
 
                 instructions.textContent = "Position your face in the frame and try again";
-                instructions.style.background = '#f5f5f5';
-                instructions.style.color = '#333';
+                instructions.style.background = 'var(--bg-primary)';
+                instructions.style.color = 'var(--text-medium)';
             }
         } catch (err) {
             clearInterval(pollInterval);
@@ -537,22 +368,18 @@
     }
 
     function enableFormSection(username) {
-        // Update step badge
         document.getElementById('step2Badge').classList.remove('step-pending');
         document.getElementById('step2Badge').classList.add('step-complete');
 
-        // Set username
         document.getElementById('hiddenName').value = username;
         document.getElementById('displayUsername').value = username;
 
-        // Enable form fields
         document.getElementById('full_name').disabled = false;
         document.getElementById('phone').disabled = false;
         document.getElementById('department').disabled = false;
         document.getElementById('position').disabled = false;
         document.getElementById('submitBtn').disabled = false;
 
-        // Focus on first field
         document.getElementById('full_name').focus();
     }
 
@@ -567,6 +394,7 @@
         btn.textContent = 'Registering...';
         statusDiv.textContent = "Processing registration...";
         statusDiv.className = "status-message loading";
+        statusDiv.style.display = "block";
 
         try {
             const response = await fetch('/api/complete-registration', {

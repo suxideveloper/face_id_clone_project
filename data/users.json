@@ -1,23 +1,9 @@
 {
-  "murod": {
-    "full_name": "Murodjon Komilov",
-    "phone": "",
-    "department": "IT",
-    "position": "Bosh mutaxassis",
-    "registered": true
-  },
   "Suxrob": {
     "full_name": "Suxrob Toshpulatov",
     "phone": "+998993077516",
-    "department": "IT",
+    "department": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
     "position": "Yetakchi mutaxasis",
-    "registered": true
-  },
-  "Hojiakbar": {
-    "full_name": "Abdulhakimov Hojiakbar ",
-    "phone": "+998886246440",
-    "department": "IT",
-    "position": "Bosh mutaxassis",
     "registered": true
   }
 }
