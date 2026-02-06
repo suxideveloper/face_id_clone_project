@@ -10,50 +10,73 @@
 </script>
 
 <div class="dashboard-wrapper">
-    <!-- Organization Branding -->
-    <div class="org-branding">
-        <img src="{{ url_for('static', path='images/logo.png') }}" alt="Logo" class="org-logo">
-        <div class="org-name">RAQAMLI TEXNOLOGIYALAR VA SUN'IY INTELLEKTNI<br>RIVOJLANTIRISH ILMIY-TADQIQOT INSTITUTI
-        </div>
-    </div>
 
-    <!-- Header Section -->
-    <header class="dashboard-header">
-        <div class="header-left">
-            <h1>Welcome back, {% if user %}{{ user }}{% else %}Admin{% endif %}! 👋</h1>
-            <p>Here's what's happening with your team today</p>
-        </div>
-        <div class="header-stats">
-            <div class="header-stat-card">
-                <span class="stat-value" id="stat-employees">0</span>
-                <span class="stat-label">Total Employees</span>
+    <!-- Header Section (Redesigned) -->
+    <header class="dashboard-header-new">
+        <div class="header-profile-section">
+            <div class="header-avatar">
+                {% if user %}{{ user[0]|upper }}{% else %}A{% endif %}
             </div>
-            <div class="header-stat-card accent">
-                <span class="stat-value" id="stat-attendance">0%</span>
-                <span class="stat-label">Present Today</span>
+            <div class="header-welcome">
+                <h1>Xush kelibsiz, <span class="user-highlight">{% if user %}{{ user }}{% else %}Admin{% endif
+                        %}</span>! 👋</h1>
+                <p>Bugun, <span id="current-date-text"></span> — Jamoangizdagi holat.</p>
+            </div>
+        </div>
+
+        <div class="header-stats-group">
+            <div class="stat-pill">
+                <div class="stat-icon-box blue">
+                    👥
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value-new" id="stat-employees">0</span>
+                    <span class="stat-label-new">Jami xodimlar</span>
+                </div>
+            </div>
+            <div class="stat-pill">
+                <div class="stat-icon-box green">
+                    ✅
+                </div>
+                <div class="stat-content">
+                    <span class="stat-value-new" id="stat-attendance">0%</span>
+                    <span class="stat-label-new">Bugun kelganlar</span>
+                </div>
             </div>
         </div>
     </header>
 
+    <script>
+        // Simple script to set the current date
+        const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        // Uzbek locale 'uz-UZ' might work if supported, otherwise default or custom formatted
+        // Using a simple formatter for safety if locale not fully supported
+        const today = new Date();
+        const months = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun", "Iyul", "Avgust", "Sentyabr", "Oktyabr", "Noyabr", "Dekabr"];
+        const dateString = `${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
+        document.getElementById('current-date-text').textContent = dateString;
+    </script>
+
     <!-- Main Grid -->
     <main class="dashboard-main">
-        <!-- Left Column - Charts -->
-        <section class="main-content">
+
+        <!-- Top Row: Pulse + Quick Actions -->
+        <div class="dashboard-top-row">
             <!-- Daily Attendance Pulse Card -->
             <div class="card attendance-card">
                 <div class="card-header">
-                    <h2>📊 Daily Attendance Pulse</h2>
+                    <h2>📊 Kunlik davomat ko'rsatkichi</h2>
                     <span class="live-badge">● Live</span>
                 </div>
                 <div class="card-body">
                     <div class="daily-pulse-grid">
                         <!-- Main Stat: Present Today -->
                         <div class="main-stat-box">
-                            <div class="main-stat-label">Present Today</div>
+                            <div class="main-stat-label">Bugun kelganlar</div>
                             <div class="main-stat-value" id="stat-present-count">0</div>
                             <div class="main-stat-growth">
                                 <span class="trend-icon" id="stat-growth-icon">↗</span>
-                                <span id="stat-growth-value">0%</span> vs yesterday
+                                <span id="stat-growth-value">0%</span> kechaga nisbatan
                             </div>
                         </div>
 
@@ -63,21 +86,21 @@
                                 <div class="pulse-icon">🟢</div>
                                 <div class="pulse-info">
                                     <span class="pulse-num" id="stat-on-time">0</span>
-                                    <span class="pulse-desc">On Time</span>
+                                    <span class="pulse-desc">O'z vaqtida</span>
                                 </div>
                             </div>
                             <div class="pulse-item late">
                                 <div class="pulse-icon">🟠</div>
                                 <div class="pulse-info">
                                     <span class="pulse-num" id="stat-late">0</span>
-                                    <span class="pulse-desc">Late (>9:00)</span>
+                                    <span class="pulse-desc">Kechikkanlar (>9:00)</span>
                                 </div>
                             </div>
                             <div class="pulse-item absent">
                                 <div class="pulse-icon">🔴</div>
                                 <div class="pulse-info">
                                     <span class="pulse-num" id="stat-absent">0</span>
-                                    <span class="pulse-desc">Absent</span>
+                                    <span class="pulse-desc">Kelmaganlar</span>
                                 </div>
                             </div>
                         </div>
@@ -85,69 +108,10 @@
                 </div>
             </div>
 
-            <!-- Charts Row -->
-            <div class="charts-row">
-                <!-- Attendance Statistics Card -->
-                <div class="card chart-card">
-                    <div class="card-header with-controls">
-                        <div>
-                            <h2>📊 Attendance Statistics</h2>
-                            <p class="subtitle">Overview of employee presence and trends</p>
-                        </div>
-                        <div class="chart-controls">
-                            <button class="chart-toggle active" onclick="toggleChart('weekly')">Weekly</button>
-                            <button class="chart-toggle" onclick="toggleChart('monthly')">Monthly</button>
-                        </div>
-                    </div>
-                    <div class="card-body">
-
-                        <!-- Chart Container with Skeleton -->
-                        <div class="chart-wrapper-relative" style="width: 100%;">
-                            <div id="chart-skeleton" class="skeleton-overlay" style="display: none;">
-                                <div class="skeleton-line"></div>
-                                <div class="skeleton-graph"></div>
-                            </div>
-                            <div id="chart-empty" class="empty-state" style="display: none;">
-                                <p>No data recorded for this period.</p>
-                            </div>
-                            <canvas id="attendanceChart" height="260" style="width: 100%;"></canvas>
-                        </div>
-                    </div>
-                </div>
-                <div class="card chart-card">
-                    <div class="card-header">
-                        <h2>🏢 Department Distribution</h2>
-                    </div>
-                    <div class="card-body">
-                        <canvas id="deptChart" height="240"></canvas>
-                    </div>
-                </div>
-
-                <!-- Year Goal (Moved here) -->
-                <div class="card chart-card">
-                    <div class="card-header">
-                        <h2>🎯 Year Goal</h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="goal-container" style="width: 100%;">
-                            <canvas id="gaugeChart" height="160"></canvas>
-                            <div class="goal-info">
-                                <span class="goal-value" id="goal-progress">0/73</span>
-                                <span class="goal-label">Employees Target</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- Right Sidebar -->
-        <!-- Year Goal (Moved to Sidebar previously, now empty here, leaving Quick Actions) -->
-        <aside class="sidebar">
-            <!-- Quick Actions -->
-            <div class="card">
+            <!-- Quick Actions (Moved from Sidebar) -->
+            <div class="card quick-actions-card">
                 <div class="card-header">
-                    <h2>⚡ Quick Actions</h2>
+                    <h2>⚡ Tezkor amallar</h2>
                 </div>
                 <div class="card-body quick-actions">
                     <a href="/register" class="action-btn primary">
@@ -168,7 +132,62 @@
                     </a>
                 </div>
             </div>
-        </aside>
+        </div>
+
+        <!-- Charts Row (Full Width) -->
+        <div class="charts-row">
+            <!-- Attendance Statistics Card -->
+            <div class="card chart-card">
+                <div class="card-header with-controls">
+                    <div>
+                        <h2>📊 Davomat statistikasi</h2>
+                        <p class="subtitle">Xodimlar ishtiroki va tendensiyalari</p>
+                    </div>
+                    <div class="chart-controls">
+                        <button class="chart-toggle active" onclick="toggleChart('weekly')">Haftalik</button>
+                        <button class="chart-toggle" onclick="toggleChart('monthly')">Oylik</button>
+                    </div>
+                </div>
+                <div class="card-body">
+
+                    <!-- Chart Container with Skeleton -->
+                    <div class="chart-wrapper-relative" style="width: 100%;">
+                        <div id="chart-skeleton" class="skeleton-overlay" style="display: none;">
+                            <div class="skeleton-line"></div>
+                            <div class="skeleton-graph"></div>
+                        </div>
+                        <div id="chart-empty" class="empty-state" style="display: none;">
+                            <p>Bu davr uchun ma'lumot yo'q.</p>
+                        </div>
+                        <canvas id="attendanceChart" height="260" style="width: 100%;"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h2>🏢 Bo'limlar kesimi</h2>
+                </div>
+                <div class="card-body">
+                    <canvas id="deptChart" height="240"></canvas>
+                </div>
+            </div>
+
+            <!-- Year Goal -->
+            <div class="card chart-card">
+                <div class="card-header">
+                    <h2>🎯 Yillik reja</h2>
+                </div>
+                <div class="card-body">
+                    <div class="goal-container" style="width: 100%;">
+                        <canvas id="gaugeChart" height="160"></canvas>
+                        <div class="goal-info">
+                            <span class="goal-value" id="goal-progress">0/73</span>
+                            <span class="goal-label">Xodimlar rejasi</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </main>
 
 
@@ -186,102 +205,39 @@
         margin: 0 auto;
     }
 
-    /* Organization Branding */
-    .org-branding {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 32px;
-        padding-bottom: 24px;
-        border-bottom: 1px solid var(--border-color);
-    }
+    /* ... Existing Branding/Header styles ... */
 
-    .org-logo {
-        height: 60px;
-        width: auto;
-    }
-
-    .org-name {
-        font-size: 1.1rem;
-        font-weight: 700;
-        color: var(--text-dark);
-        line-height: 1.3;
-        text-transform: uppercase;
-    }
-
-    /* Header */
-    .dashboard-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 32px;
-        flex-wrap: wrap;
-        gap: 24px;
-    }
-
-    .header-left h1 {
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--text-dark);
-        margin: 0 0 6px 0;
-    }
-
-    .header-left p {
-        color: var(--text-light);
-        margin: 0;
-        font-size: 1rem;
-    }
-
-    .header-stats {
-        display: flex;
-        gap: 16px;
-    }
-
-    .header-stat-card {
-        background: var(--bg-white);
-        border: 1px solid var(--border-color);
-        border-radius: var(--radius-lg);
-        padding: 18px 28px;
-        text-align: center;
-        box-shadow: var(--shadow-sm);
-    }
-
-    .header-stat-card.accent {
-        background: linear-gradient(135deg, var(--primary), var(--secondary));
-        border: none;
-    }
-
-    .header-stat-card.accent .stat-value,
-    .header-stat-card.accent .stat-label {
-        color: white;
-    }
-
-    .header-stat-card .stat-value {
-        display: block;
-        font-size: 1.8rem;
-        font-weight: 700;
-        color: var(--text-dark);
-    }
-
-    .header-stat-card .stat-label {
-        display: block;
-        font-size: 0.85rem;
-        color: var(--text-light);
-        margin-top: 4px;
-    }
-
-    /* Main Grid */
+    /* Main Container */
     .dashboard-main {
-        display: grid;
-        grid-template-columns: 1fr 320px;
+        display: flex;
+        flex-direction: column;
         gap: 28px;
     }
 
+    /* Top Row: Pulse + Quick Actions */
+    .dashboard-top-row {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 24px;
+        align-items: start;
+    }
+
     @media (max-width: 1100px) {
-        .dashboard-main {
+        .dashboard-top-row {
             grid-template-columns: 1fr;
         }
     }
+
+    /* Quick Actions Card height to match Pulse if possible, or auto */
+    .quick-actions-card .card-body {
+        padding: 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        justify-content: center;
+        height: 100%;
+    }
+
 
     /* Cards */
     .card {
@@ -811,6 +767,140 @@
         transform: translate(-50%, -50%);
         color: var(--text-light);
         font-weight: 500;
+    }
+
+    /* --- New Header Styles --- */
+    .dashboard-header-new {
+        background: linear-gradient(120deg, #ffffff 0%, #f0f9ff 100%);
+        border: 1px solid #e2e8f0;
+        border-radius: 24px;
+        padding: 24px 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 32px;
+        box-shadow: 0 4px 20px -5px rgba(0, 0, 0, 0.05);
+        flex-wrap: wrap;
+        gap: 24px;
+    }
+
+    .header-profile-section {
+        display: flex;
+        align-items: center;
+        gap: 20px;
+    }
+
+    .header-avatar {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.8rem;
+        font-weight: 700;
+        box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
+    }
+
+    .header-welcome h1 {
+        font-size: 1.8rem;
+        font-weight: 800;
+        color: #1e293b;
+        margin: 0 0 4px 0;
+        line-height: 1.2;
+    }
+
+    .user-highlight {
+        background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .header-welcome p {
+        color: #64748b;
+        font-size: 1rem;
+        margin: 0;
+        font-weight: 500;
+    }
+
+    .header-stats-group {
+        display: flex;
+        gap: 16px;
+    }
+
+    .stat-pill {
+        background: white;
+        border: 1px solid #e2e8f0;
+        padding: 12px 20px;
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .stat-pill:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.05);
+    }
+
+    .stat-icon-box {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.2rem;
+    }
+
+    .stat-icon-box.blue {
+        background: #eff6ff;
+        color: #3b82f6;
+    }
+
+    .stat-icon-box.green {
+        background: #ecfdf5;
+        color: #10b981;
+    }
+
+    .stat-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .stat-value-new {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #0f172a;
+        line-height: 1.1;
+    }
+
+    .stat-label-new {
+        font-size: 0.75rem;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 768px) {
+        .dashboard-header-new {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 20px;
+        }
+
+        .header-stats-group {
+            width: 100%;
+        }
+
+        .stat-pill {
+            flex: 1;
+        }
     }
 </style>
 
