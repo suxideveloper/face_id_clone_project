@@ -199,28 +199,47 @@ def generate_frames(mode="verification"):
                             face_tracker.set_name(tid, name)
                     
                     # Attendance logging & Visual Feedback
-                    if name and name != "Unknown":
+                    # Allow "Unknown" to pass through for visual feedback (red alert)
+                    if name:
                         current_time = time.time()
                         last_db = attendance_debounce.get(name, 0)
                         last_visual = visual_debounce.get(name, 0)
                         
-                        should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
-                        should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
-                        
-                        if should_show_visual:
-                            visual_debounce[name] = current_time
-                            if should_log_db:
-                                attendance_debounce[name] = current_time
+                        # Logic for Known Users
+                        if name != "Unknown":
+                            should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
+                            should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
                             
-                            # Queue attendance event for async processing
-                            try:
-                                attendance_queue.put_nowait({
-                                    "worker_id": name,
-                                    "frame": frame.copy(),
-                                    "log_db": should_log_db
-                                })
-                            except asyncio.QueueFull:
-                                pass  # Skip if queue is full
+                            if should_show_visual:
+                                visual_debounce[name] = current_time
+                                if should_log_db:
+                                    attendance_debounce[name] = current_time
+                                
+                                try:
+                                    attendance_queue.put_nowait({
+                                        "worker_id": name,
+                                        "frame": frame.copy(),
+                                        "log_db": should_log_db
+                                    })
+                                except asyncio.QueueFull:
+                                    pass
+                        
+                        # Logic for Unknown Users
+                        else:
+                            # For unknown, we don't log to DB, but we want to trigger visual feedback
+                            # Use visual debounce to avoid flooding WebSocket
+                            should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
+                            
+                            if should_show_visual:
+                                visual_debounce[name] = current_time
+                                try:
+                                    attendance_queue.put_nowait({
+                                        "worker_id": "Unknown",
+                                        "frame": frame.copy(), # Frame might be needed if we want to save unknown faces later
+                                        "log_db": False
+                                    })
+                                except asyncio.QueueFull:
+                                    pass
                     
                     # Draw Results only if recognized
                     # Draw Results (Verified = Green, Unknown = Red)
@@ -936,7 +955,11 @@ async def process_attendance_queue():
             frame = event["frame"]
             log_db = event.get("log_db", True)
             
-            if log_db:
+            if worker_id == "Unknown":
+                # Special handling for unknown users
+                await ws_manager.send_check_in("Unknown", "Unknown")
+            
+            elif log_db:
                 # Record attendance (heavy db write)
                 result = await asyncio.to_thread(
                     attendance_db.record_attendance, worker_id, frame
@@ -959,35 +982,36 @@ async def process_attendance_queue():
                         "record": {"check_in_time": datetime.now().isoformat(), "check_out_time": None}
                     }
             
-            # Get user info for display name
-            user_info = user_db.get_user(worker_id)
-            full_name = user_info.get("full_name", worker_id) if user_info else worker_id
-            
-            # Broadcast event via WebSocket
-            # Broadcast event via WebSocket
-            if result["event_type"] == "check_in":
-                await ws_manager.send_check_in(worker_id, full_name)
-            else:
-                # Calculate working time
-                working_time = "N/A"
-                check_in_str = None
-                try:
-                    cin = datetime.fromisoformat(result["record"]["check_in_time"])
-                    # Use checkout time if available, otherwise use now (just for diff, though usually cout exists here)
-                    cout_str = result["record"].get("check_out_time")
-                    cout = datetime.fromisoformat(cout_str) if cout_str else datetime.now()
-                    
-                    # Format Check In Time for display (e.g., 09:30 AM)
-                    check_in_str = cin.strftime("%I:%M %p")
-                    
-                    duration = cout - cin
-                    hours, remainder = divmod(duration.seconds, 3600)
-                    minutes, _ = divmod(remainder, 60)
-                    working_time = f"{hours}h {minutes}m"
-                except Exception as e:
-                    print(f"Error calc duration: {e}")
-                    
-                await ws_manager.send_check_out(worker_id, full_name, working_time, check_in_time=check_in_str)
+            # Process Known Users
+            if worker_id != "Unknown":
+                # Get user info for display name
+                user_info = user_db.get_user(worker_id)
+                full_name = user_info.get("full_name", worker_id) if user_info else worker_id
+                
+                # Broadcast event via WebSocket
+                if result["event_type"] == "check_in":
+                    await ws_manager.send_check_in(worker_id, full_name)
+                else:
+                    # Calculate working time
+                    working_time = "N/A"
+                    check_in_str = None
+                    try:
+                        cin = datetime.fromisoformat(result["record"]["check_in_time"])
+                        # Use checkout time if available, otherwise use now (just for diff, though usually cout exists here)
+                        cout_str = result["record"].get("check_out_time")
+                        cout = datetime.fromisoformat(cout_str) if cout_str else datetime.now()
+                        
+                        # Format Check In Time for display (e.g., 09:30 AM)
+                        check_in_str = cin.strftime("%I:%M %p")
+                        
+                        duration = cout - cin
+                        hours, remainder = divmod(duration.seconds, 3600)
+                        minutes, _ = divmod(remainder, 60)
+                        working_time = f"{hours}h {minutes}m"
+                    except Exception as e:
+                        print(f"Error calc duration: {e}")
+                        
+                    await ws_manager.send_check_out(worker_id, full_name, working_time, check_in_time=check_in_str)
                 
         except Exception as e:
             print(f"Attendance processing error: {e}")

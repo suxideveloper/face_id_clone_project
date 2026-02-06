@@ -5,7 +5,7 @@
 
 {% block content %}
 <div class="login-wrapper">
-    <div class="login-background-shape"></div>
+    <canvas id="gridCanvas"></canvas>
     <div class="login-card">
         <div class="login-header">
             <img src="../static/images/airi-logo_uz.png" alt="Logo" class="login-logo">
@@ -16,7 +16,8 @@
         <form action="/login" method="POST" class="login-form">
             <div class="form-group">
                 <label for="username">Foydalanuvchi nomi</label>
-                <input type="text" id="username" name="username" placeholder="Loginni kiriting" required autocomplete="off">
+                <input type="text" id="username" name="username" placeholder="Loginni kiriting" required
+                    autocomplete="off">
             </div>
 
             <div class="form-group">
@@ -58,7 +59,7 @@
         --primary-color: #4F46E5;
         --primary-dark: #4338ca;
         --secondary-color: #0EA5E9;
-        --bg-gradient: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        /* Background removed from root as we use canvas */
         --text-dark: #1e293b;
         --text-medium: #64748b;
         --radius-lg: 16px;
@@ -71,46 +72,63 @@
         margin: 0 !important;
     }
 
-    .login-wrapper {
-        min-height: 100vh;
-        width: 100%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background: var(--bg-gradient);
-        position: relative;
-        overflow: hidden;
-        padding: 20px; /* Mobil qurilmalarda chetidan joy qolishi uchun */
-    }
-
-    .login-background-shape {
+    #gridCanvas {
         position: absolute;
-        width: 800px;
-        height: 800px;
-        background: linear-gradient(to right, var(--primary-color), var(--secondary-color));
-        border-radius: 50%;
-        opacity: 0.05;
-        top: -200px;
-        right: -100px;
+        width: 100%;
+        height: 100%;
+        top: 0;
+        left: 0;
         z-index: 0;
     }
 
-    .login-card {
-        background: rgba(255, 255, 255, 0.9);
-        backdrop-filter: blur(12px);
-        padding: 40px; /* 48px dan 40px ga tushirildi, ixchamroq bo'lishi uchun */
-        border-radius: var(--radius-lg);
-        box-shadow: var(--shadow-card);
+    .login-wrapper {
         width: 100%;
-        max-width: 400px; /* 400px dan 380px ga - standart o'lcham */
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* background: var(--bg-gradient); Removed to show canvas */
+        position: relative;
+        overflow: hidden;
+        padding: 20px;
+        /* Mobil qurilmalarda chetidan joy qolishi uchun */
+    }
+
+    .login-card {
+        background: rgba(255, 255, 255, 0.83);
+        /* More translucent for proper glass effect */
+        backdrop-filter: blur(20px) saturate(180%);
+        /* Stronger blur and saturation */
+        -webkit-backdrop-filter: blur(20px) saturate(180%);
+        padding: 40px;
+        border-radius: 24px;
+        /* More rounded */
+        box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+        /* Glass shadow */
+        width: 100%;
+        max-width: 500px;
+        /* 400px dan 380px ga - standart o'lcham */
         z-index: 1;
-        border: 1px solid rgba(255, 255, 255, 0.6);
+        /* Above canvas */
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        /* Crisp white border */
+        border-top: 1px solid rgba(255, 255, 255, 0.9);
+        /* Highlight top */
+        border-left: 1px solid rgba(255, 255, 255, 0.9);
+        /* Highlight left */
         animation: slideUp 0.6s ease-out forwards;
     }
 
     @keyframes slideUp {
-        from { opacity: 0; transform: translateY(20px); }
-        to { opacity: 1; transform: translateY(0); }
+        from {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .login-header {
@@ -126,9 +144,10 @@
     }
 
     /* --- MATN O'LCHAMLARI YANGILANDI --- */
-    
+
     .login-header h1 {
-        font-size: 1.5rem; /* 24px - Eng optimal sarlavha o'lchami */
+        font-size: 1.5rem;
+        /* 24px - Eng optimal sarlavha o'lchami */
         font-weight: 700;
         color: var(--text-dark);
         margin: 0 0 8px 0;
@@ -138,7 +157,8 @@
 
     .login-header p {
         color: var(--text-medium);
-        font-size: 0.95rem; /* 15px - Subtitle uchun */
+        font-size: 0.95rem;
+        /* 15px - Subtitle uchun */
         margin: 0;
         line-height: 1.5;
     }
@@ -151,17 +171,20 @@
     .login-form .form-group label {
         display: block;
         color: var(--text-dark);
-        font-size: 0.875rem; /* 14px - Label inputdan kichik bo'lishi shart */
+        font-size: 0.875rem;
+        /* 14px - Label inputdan kichik bo'lishi shart */
         font-weight: 600;
         margin-bottom: 8px;
     }
 
     .login-form .form-group input {
         width: 100%;
-        padding: 12px 16px; /* Paddinglar ixchamlashtirildi */
+        padding: 12px 16px;
+        /* Paddinglar ixchamlashtirildi */
         border: 2px solid #e2e8f0;
         border-radius: 10px;
-        font-size: 1rem; /* 16px - Standart o'qish o'lchami */
+        font-size: 1rem;
+        /* 16px - Standart o'qish o'lchami */
         color: var(--text-dark);
         background-color: #f8fafc;
         transition: all 0.2s ease;
@@ -171,7 +194,8 @@
     .login-form .form-group input:focus {
         border-color: var(--primary-color);
         background-color: #fff;
-        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15); /* Shadow sal nazokatliroq qilindi */
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+        /* Shadow sal nazokatliroq qilindi */
     }
 
     .btn-login {
@@ -181,7 +205,8 @@
         color: white;
         border: none;
         border-radius: 10px;
-        font-size: 1rem; /* Tugma matni ham 16px */
+        font-size: 1rem;
+        /* Tugma matni ham 16px */
         font-weight: 600;
         cursor: pointer;
         transition: all 0.3s ease;
@@ -203,7 +228,8 @@
         padding: 10px 14px;
         border-radius: 8px;
         margin-bottom: 20px;
-        font-size: 0.875rem; /* Xatolik matni kichikroq */
+        font-size: 0.875rem;
+        /* Xatolik matni kichikroq */
         font-weight: 500;
         border: 1px solid #fee2e2;
         display: flex;
@@ -218,7 +244,8 @@
 
     .footer-links a {
         color: var(--text-medium);
-        font-size: 0.875rem; /* 14px */
+        font-size: 0.875rem;
+        /* 14px */
         text-decoration: none;
         transition: color 0.2s;
     }
@@ -232,9 +259,213 @@
         .login-card {
             padding: 30px 20px;
         }
+
         .login-header h1 {
-            font-size: 1.35rem; /* Mobilda sarlavha sal kichrayadi */
+            font-size: 1.35rem;
+            /* Mobilda sarlavha sal kichrayadi */
         }
     }
 </style>
+
+<script>
+    const canvas = document.getElementById('gridCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Set canvas size
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Configuration object
+    const config = {
+        gridSize: 40,
+        gridColor: '#334155',
+        particleCount: 50,
+        particleSpeedMin: 0.5,
+        particleSpeedMax: 5,
+        particleColors: ['#ffffff', '#64748b', '#94a3b8'],
+        trailLength: 20,
+        backgroundColor: '#0f172a',
+        rippleDuration: 2000,
+        rippleMaxRadius: 200
+    };
+
+    // Grid tracking system
+    const occupiedLines = {
+        horizontal: new Set(),
+        vertical: new Set()
+    };
+
+    // Characters for matrix/hacker effect
+    const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;':,./<>?";
+
+    function createGrid() {
+        ctx.fillStyle = config.backgroundColor;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Grid lines
+        ctx.lineWidth = 1;
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, 'rgba(51, 65, 85, 0.3)');
+        gradient.addColorStop(1, 'rgba(51, 65, 85, 0.1)');
+        ctx.strokeStyle = gradient;
+
+        for (let y = 0; y < canvas.height; y += config.gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+        }
+
+        for (let x = 0; x < canvas.width; x += config.gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+        }
+    }
+
+    class Particle {
+        constructor() {
+            this.active = false;
+            this.trail = [];
+            this.reset();
+        }
+
+        update() {
+            if (!this.active) return;
+
+            this.trail.push({ x: this.x, y: this.y });
+            if (this.trail.length > config.trailLength) this.trail.shift();
+
+            if (this.direction === 'horizontal') {
+                this.x += this.speed;
+                if (this.x > canvas.width) this.retire();
+            } else {
+                this.y += this.speed;
+                if (this.y > canvas.height) this.retire();
+            }
+        }
+
+        retire() {
+            this.active = false;
+            if (this.direction === 'horizontal') occupiedLines.horizontal.delete(this.rowOrCol);
+            else occupiedLines.vertical.delete(this.rowOrCol);
+
+            setTimeout(() => this.reset(), Math.random() * 1000);
+        }
+
+        draw() {
+            if (!this.active || this.trail.length < 2) return;
+
+            for (let i = 0; i < this.trail.length; i++) {
+                const point = this.trail[i];
+                const alpha = (i / this.trail.length);
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = alpha;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1.0;
+        }
+
+        findAvailableLine() {
+            if (Math.random() > 0.5) {
+                // Horizontal
+                const y = Math.floor(Math.random() * (canvas.height / config.gridSize)) * config.gridSize;
+                if (!occupiedLines.horizontal.has(y)) {
+                    this.direction = 'horizontal';
+                    this.x = 0;
+                    this.y = y;
+                    this.rowOrCol = y;
+                    occupiedLines.horizontal.add(y);
+                    return true;
+                }
+            } else {
+                // Vertical
+                const x = Math.floor(Math.random() * (canvas.width / config.gridSize)) * config.gridSize;
+                if (!occupiedLines.vertical.has(x)) {
+                    this.direction = 'vertical';
+                    this.x = x;
+                    this.y = 0;
+                    this.rowOrCol = x;
+                    occupiedLines.vertical.add(x);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        reset() {
+            this.trail = [];
+            this.color = config.particleColors[Math.floor(Math.random() * config.particleColors.length)];
+            this.speed = Math.random() * (config.particleSpeedMax - config.particleSpeedMin) + config.particleSpeedMin;
+            if (this.findAvailableLine()) {
+                this.active = true;
+            } else {
+                setTimeout(() => this.reset(), 100);
+            }
+        }
+    }
+
+    const particles = Array(config.particleCount).fill().map(() => new Particle());
+
+    // Ripple effect
+    let ripples = [];
+    class Ripple {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.radius = 0;
+            this.maxRadius = config.rippleMaxRadius;
+            this.startTime = Date.now();
+        }
+
+        update() {
+            const elapsed = Date.now() - this.startTime;
+            this.radius = (elapsed / config.rippleDuration) * this.maxRadius;
+        }
+
+        draw() {
+            const alpha = Math.max(0, 1 - (this.radius / this.maxRadius));
+            ctx.strokeStyle = `rgba(14, 165, 233, ${alpha})`; // Cyan color for ripple
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+            ctx.stroke();
+        }
+
+        isComplete() {
+            return this.radius >= this.maxRadius;
+        }
+    }
+
+    function animate() {
+        createGrid();
+
+        particles.forEach(p => {
+            p.update();
+            p.draw();
+        });
+
+        ripples = ripples.filter(r => !r.isComplete());
+        ripples.forEach(r => {
+            r.update();
+            r.draw();
+        });
+
+        requestAnimationFrame(animate);
+    }
+
+    // Add ripple on click
+    document.addEventListener('click', (e) => {
+        ripples.push(new Ripple(e.clientX, e.clientY));
+    });
+
+    animate();
+</script>
 {% endblock %}

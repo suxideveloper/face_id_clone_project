@@ -9,10 +9,10 @@
     <!-- Header -->
     <header class="kiosk-header">
         <div class="kiosk-branding">
-            <img src="{{ url_for('static', path='images/logo.png') }}" alt="Logo" class="kiosk-logo">
-            <div class="kiosk-org-name">RAQAMLI TEXNOLOGIYALAR VA SUN'IY INTELLEKTNI<br>RIVOJLANTIRISH ILMIY-TADQIQOT
-                INSTITUTI</div>
+            <img src="{{ url_for('static', path='images/airi-logo_uz.png') }}" alt="Logo" class="kiosk-logo">
+           
         </div>
+
     </header>
 
     <div class="kiosk-main">
@@ -30,7 +30,7 @@
                 <div class="user-count">
                     👥 Active Users: {{ active_users_count or 0 }}
                 </div>
-            </div>
+            </div>S
         </div>
 
         <!-- Right: User Info Panel -->
@@ -87,6 +87,15 @@
                         Verify complete. Thank you!
                     </div>
                 </div>
+
+                <!-- Unregistered State -->
+                <div class="unregistered-state hidden" id="unregisteredState">
+                    <div class="unregistered-header">
+                        <div class="u-icon">✕</div>
+                        <h2>Ro'yxatdan o'tilmagan</h2>
+                    </div>
+                    <p>Iltimos, HR bo'limiga murojaat qiling</p>
+                </div>
             </div>
         </div>
     </div>
@@ -114,10 +123,15 @@
     }
 
     .kiosk-header {
-        padding: 20px 40px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 24px 60px;
+        /* SLightly customized padding */
         background: white;
         border-bottom: 1px solid var(--border-color);
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        /* Enhanced shadow */
         z-index: 10;
         flex-shrink: 0;
     }
@@ -126,22 +140,61 @@
         display: flex;
         align-items: center;
         gap: 20px;
-        justify-content: center;
     }
 
     .kiosk-logo {
-        height: 50px;
+        height: 55px;
         width: auto;
     }
 
-    .kiosk-org-name {
-        font-size: 1rem;
-        font-weight: 700;
+    .branding-text {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+
+    .brand-title {
+        font-family: 'Inter', sans-serif;
+        /* Ensure premium font */
+        font-size: 1.8rem;
+        font-weight: 800;
         color: var(--text-dark);
-        line-height: 1.25;
+        line-height: 1;
+        margin: 0 0 4px 0;
+        letter-spacing: -0.5px;
+        background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .brand-subtitle {
+        font-size: 0.95rem;
+        font-weight: 500;
+        color: var(--text-light);
+        margin: 0;
         text-transform: uppercase;
-        max-width: 600px;
-        text-align: left;
+        letter-spacing: 0.5px;
+    }
+
+    .header-controls {
+        display: flex;
+        align-items: center;
+    }
+
+    .help-text {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--bg-primary);
+        padding: 10px 20px;
+        border-radius: 50px;
+        color: var(--text-medium);
+        font-size: 0.9rem;
+        font-weight: 600;
+    }
+
+    .help-text .icon {
+        font-size: 1.2rem;
     }
 
     .kiosk-main {
@@ -437,6 +490,77 @@
     .hidden {
         display: none !important;
     }
+
+    /* Unregistered State */
+    .unregistered-state {
+        text-align: center;
+        padding: 40px;
+        border-radius: 28px;
+        background: #fef2f2;
+        /* Light red bg */
+        border: 2px solid #fee2e2;
+        box-shadow: var(--shadow-lg);
+        animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
+    }
+
+    .unregistered-header {
+        margin-bottom: 24px;
+        color: #ef4444;
+    }
+
+    .u-icon {
+        width: 60px;
+        height: 60px;
+        background: #ef4444;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0 auto 16px;
+        box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+    }
+
+    .unregistered-state h2 {
+        font-size: 1.8rem;
+        color: #b91c1c;
+        /* Darker red */
+        margin: 0;
+        font-weight: 700;
+    }
+
+    .unregistered-state p {
+        color: #7f1d1d;
+        font-size: 1.1rem;
+        margin-top: 12px;
+        font-weight: 500;
+    }
+
+    @keyframes shake {
+
+        10%,
+        90% {
+            transform: translate3d(-1px, 0, 0);
+        }
+
+        20%,
+        80% {
+            transform: translate3d(2px, 0, 0);
+        }
+
+        30%,
+        50%,
+        70% {
+            transform: translate3d(-4px, 0, 0);
+        }
+
+        40%,
+        60% {
+            transform: translate3d(4px, 0, 0);
+        }
+    }
 </style>
 {% endblock %}
 
@@ -444,6 +568,8 @@
 <script>
     let ws;
     let timer = null;
+    let unknownTimer = null;
+    let resetUnknownTimer = null;
 
     const waitingState = document.getElementById('waitingState');
     const verifiedState = document.getElementById('verifiedState');
@@ -504,7 +630,55 @@
     }
 
     function showUserVerification(data) {
-        if (!data.name || data.name === "Unknown") return;
+        if (!data.name) return;
+
+        // Reset unknown timer if a valid user is detected
+        if (data.name !== "Unknown") {
+            if (unknownTimer) {
+                clearTimeout(unknownTimer);
+                unknownTimer = null;
+            }
+            if (resetUnknownTimer) {
+                clearTimeout(resetUnknownTimer);
+                resetUnknownTimer = null;
+            }
+            // Hide unregistered state if it's showing
+            const unregisteredState = document.getElementById('unregisteredState');
+            if (unregisteredState && !unregisteredState.classList.contains('hidden')) {
+                unregisteredState.classList.add('hidden');
+            }
+        }
+
+        // Handle "Unknown" detection
+        if (data.name === "Unknown") {
+            // If we are already showing the unregistered state, do nothing
+            const unregisteredState = document.getElementById('unregisteredState');
+            if (!unregisteredState.classList.contains('hidden')) return;
+
+            // If timer is not running, start it
+            if (!unknownTimer) {
+                unknownTimer = setTimeout(() => {
+                    // Show unregistered state
+                    waitingState.classList.add('hidden');
+                    verifiedState.classList.add('hidden');
+                    unregisteredState.classList.remove('hidden');
+
+                    // Play error sound? (Optional, verify sound used for success)
+                    // You might want a different sound for error.
+                    // For now, let's keep it silent or reuse logic if requested.
+
+                    // Reset back to waiting after 3 seconds
+                    resetUnknownTimer = setTimeout(() => {
+                        unregisteredState.classList.add('hidden');
+                        waitingState.classList.remove('hidden');
+                        unknownTimer = null; // Reset main timer allow triggering again
+                        resetUnknownTimer = null;
+                    }, 3000);
+
+                }, 6000); // 6 seconds wait
+            }
+            return;
+        }
 
         playVerifySound();
 
