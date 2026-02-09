@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timedelta
 import asyncio
 import os
+import threading
 from app.core.config import settings
 
 from app.services.tracker import Tracker
@@ -154,17 +155,27 @@ def generate_frames(mode="verification"):
                 bbox_list = [det[0] for det in detections]
                 tracked_faces = face_tracker.update(bbox_list)
                 
+                # Check results from background verification
+                # (No need to explicitly check, the background threads update tracker state directly)
+
                 for face in tracked_faces:
                     tid, (x1, y1, x2, y2), name = face["id"], face["bbox"], face["name"]
                     needs_reverify = face.get("needs_reverify", False)
+                    is_verifying = face.get("is_verifying", False)
                     
-                    if name is None or needs_reverify:
-                        try:
-                            name = recognizer.verify(frame, (x1, y1, x2, y2))
-                            face_tracker.set_name(tid, name)
-                        except:
-                            name = "Unknown"
-                            face_tracker.set_name(tid, name)
+                    if (name is None or needs_reverify) and not is_verifying:
+                        # Schedule verification in background
+                        face_tracker.set_verifying(tid, True)
+                        
+                        def verify_task(track_id, frame_copy, bbox):
+                            try:
+                                result_name = recognizer.verify(frame_copy, bbox)
+                                face_tracker.set_name(track_id, result_name)
+                            except Exception as e:
+                                print(f"Verification error: {e}")
+                                face_tracker.set_verifying(track_id, False)
+
+                        threading.Thread(target=verify_task, args=(tid, frame.copy(), (x1, y1, x2, y2)), daemon=True).start()
                     
                     if name:
                         current_time = time.time()
@@ -197,6 +208,12 @@ def generate_frames(mode="verification"):
                         t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 1)[0]
                         cv2.rectangle(frame, (x1, y1-30), (x1 + t_size[0] + 10, y1), color, -1)
                         cv2.putText(frame, label, (x1+5, y1-10), cv2.FONT_HERSHEY_DUPLEX, 0.7, text_color, 1, cv2.LINE_AA)
+                    
+                    elif is_verifying:
+                         # Draw yellow box for verifying
+                        color = (0, 255, 255)
+                        cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
+                        cv2.putText(frame, "Verifying...", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.6, color, 2)
             
             if frame is None:
                 continue

@@ -90,14 +90,16 @@ class Tracker:
                     "name": None, 
                     "lost": 0,
                     "last_verified": 0,
-                    "verify_count": 0
+                    "verify_count": 0,
+                    "is_verifying": False
                 }
                 current_detections.append({
                     "id": new_id, 
                     "bbox": det, 
                     "name": None, 
                     "is_new": True,
-                    "needs_reverify": False
+                    "needs_reverify": False,
+                    "is_verifying": False
                 })
         
         # 3. Clean up old tracks
@@ -107,11 +109,16 @@ class Tracker:
             
         return current_detections
 
+    def set_verifying(self, track_id, status=True):
+        if track_id in self.tracks:
+            self.tracks[track_id]["is_verifying"] = status
+
     def set_name(self, track_id, name):
         """Set the recognized name for a track"""
         if track_id in self.tracks:
             self.tracks[track_id]["name"] = name
             self.tracks[track_id]["last_verified"] = time.time()
+            self.tracks[track_id]["is_verifying"] = False
             self.tracks[track_id]["verify_count"] = self.tracks[track_id].get("verify_count", 0) + 1
     
     def clear_name(self, track_id):
