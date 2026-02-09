@@ -626,6 +626,8 @@ async def get_user_attendance_stats(name: str):
         }
     })
 
+from fastapi.concurrency import run_in_threadpool
+
 @router.websocket("/ws/video_input")
 async def video_input(websocket: WebSocket):
     await websocket.accept()
@@ -635,8 +637,8 @@ async def video_input(websocket: WebSocket):
         while True:
             # Receive bytes from client
             data = await websocket.receive_bytes()
-            # Process frame
-            camera_service.process_input_frame(data)
+            # Process frame in thread pool to avoid blocking event loop
+            await run_in_threadpool(camera_service.process_input_frame, data)
     except WebSocketDisconnect:
         print("Video input client disconnected")
         log_debug("Video input client disconnected")

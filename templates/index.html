@@ -684,7 +684,7 @@
                 }
                 // Schedule next frame (~20 FPS)
                 setTimeout(sendFrameLoop, 50);
-            }, 'image/jpeg', 0.6);
+            }, 'image/jpeg', 0.4);
         } else {
             // If video not ready yet, wait and retry
             if (framesSent === 0 && Math.random() < 0.05) {
