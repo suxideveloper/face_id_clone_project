@@ -13,7 +13,7 @@
             <p>Tizimga kirish uchun ma'lumotlaringizni kiriting</p>
         </div>
 
-        <form action="/login" method="POST" class="login-form">
+        <form action="/login?next={{ next }}" method="POST" class="login-form">
             <div class="form-group">
                 <label for="username">Foydalanuvchi nomi</label>
                 <input type="text" id="username" name="username" placeholder="Loginni kiriting" required

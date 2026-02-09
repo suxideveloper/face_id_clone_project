@@ -24,7 +24,7 @@ def _save_admins(admins):
     with open(ADMIN_FILE, 'w') as f:
         json.dump(admins, f, indent=4)
 
-def create_admin(username, password):
+def create_admin(username, password, role="admin"):
     admins = _load_admins()
     if username in admins:
         return False, "User already exists"
@@ -35,20 +35,25 @@ def create_admin(username, password):
     admins[username] = {
         "username": username,
         "hashed_password": hashed_pw,
-        "salt": salt
+        "salt": salt,
+        "role": role
     }
     _save_admins(admins)
-    return True, "Admin created successfully"
+    return True, f"User '{username}' with role '{role}' created successfully"
 
 def verify_admin(username, password):
     admins = _load_admins()
     if username not in admins:
-        return False
+        return None
     
     admin = admins[username]
     salt = admin.get("salt", "")
     hashed_pw = _get_password_hash(password, salt)
     
     if hashed_pw == admin["hashed_password"]:
-        return True
-    return False
+        # Return the admin user object (excluding sensitive info if needed, but for internal use full dict is ok)
+        # Ensure role exists (default to admin for backward compatibility)
+        if "role" not in admin:
+            admin["role"] = "admin"
+        return admin
+    return None

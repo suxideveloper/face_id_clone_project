@@ -3,5 +3,16 @@
         "username": "airiadmin",
         "hashed_password": "86c9fff0ea28bb49f647b3fd604279e273622abad89239c21c0cedc7835e78e0",
         "salt": "bf0cb15fc3113cf5dce5d98093281ad7"
+    },
+    "admin": {
+        "username": "admin",
+        "hashed_password": "6a3aeb33462b5a8b9b4681fd6aaadd89aec43cbf3ae48e75daf2167d19b088e9",
+        "salt": "7f63419b6fefb35920b656aedcad339a"
+    },
+    "kiosk": {
+        "username": "kiosk",
+        "hashed_password": "9e12d936a708fd010af5e168acf7b73165269c3325b82b680d86213ee2ea519b",
+        "salt": "1cd058ab5ae8c623e9d0fc5c9e7342b0",
+        "role": "kiosk"
     }
 }

@@ -5,5 +5,12 @@
     "department": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
     "position": "Yetakchi mutaxasis",
     "registered": true
+  },
+  "Murod": {
+    "full_name": "Murodjon Komilov",
+    "phone": "+998901402048",
+    "department": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
+    "position": "Bosh mutaxassis",
+    "registered": true
   }
 }

@@ -1,5 +1,24 @@
 {% extends "base.html" %}
 
+{% block navbar %}
+<nav class="navbar" style="background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+    <div class="nav-container" style="justify-content: space-between;">
+        <a href="/" class="nav-brand">
+            <img src="{{ url_for('static', path='images/airi-logo_uz.png') }}" alt="Logo" style="height: 45px;">
+        </a>
+        <a href="/" class="btn-secondary"
+            style="text-decoration: none; padding: 8px 16px; border-radius: 12px; display: flex; align-items: center; gap: 8px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Kioskga qaytish
+        </a>
+    </div>
+</nav>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
     <h1>Yangi xodimni ro'yxatdan o'tkazish</h1>
@@ -81,24 +100,36 @@
                         <option value="HR">Xodimlar bilan ishlash bo'limi</option>
                         <option value="mutaxassislar">Mutaxassislar</option>
                         <option value="biometrik tizimlar labaratoriyasi">Biometrik tizimlar labaratoriyasi</option>
-                        <option value="Intelektual dastury tizimlar qo'shma labaratoriyasi">Intelektual dastury tizimlar qo'shma
+                        <option value="Intelektual dastury tizimlar qo'shma labaratoriyasi">Intelektual dastury tizimlar
+                            qo'shma
                             labaratoriyasi</option>
-                        <option value="Timsollarni tanib olish labaratoriyasi">Timsollarni tanib olish labaratoriyasi</option>
-                        <option value="tabiy tilni qayta ishlash labaratoriyasi">Tabiiy tilni qayta ishlash labaratoriyasi</option>
-                        <option value="Murakkab tizimlarni modellashtirish labaratoriyasi">Murakkab tizimlarni modellashtirish
+                        <option value="Timsollarni tanib olish labaratoriyasi">Timsollarni tanib olish labaratoriyasi
+                        </option>
+                        <option value="tabiy tilni qayta ishlash labaratoriyasi">Tabiiy tilni qayta ishlash
                             labaratoriyasi</option>
-                        <option value="Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi">Sun'iy intelekt va mashinaviy o'qitish
+                        <option value="Murakkab tizimlarni modellashtirish labaratoriyasi">Murakkab tizimlarni
+                            modellashtirish
                             labaratoriyasi</option>
-                        <option value="Aqilli tizimlar va buyumlar interneti labaratoriyasi">Aqilli tizimlar va buyumlar interneti
+                        <option value="Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi">Sun'iy intelekt va
+                            mashinaviy o'qitish
                             labaratoriyasi</option>
-                        <option value="Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi">Texnik tizimlarni
+                        <option value="Aqilli tizimlar va buyumlar interneti labaratoriyasi">Aqilli tizimlar va buyumlar
+                            interneti
+                            labaratoriyasi</option>
+                        <option value="Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi">Texnik
+                            tizimlarni
                             boshqarish va raqamli loyhalash labaratoriyasi</option>
-                        <option value="Dasturiy mahsulotlarni ishlab chiqsh bo'limi">Dasturiy mahsulotlarni ishlab chiqsh bo'limi</option>
-                        <option value="Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi">Dasturiy mahsulotlarni sinovdan o'tkazish
+                        <option value="Dasturiy mahsulotlarni ishlab chiqsh bo'limi">Dasturiy mahsulotlarni ishlab
+                            chiqsh bo'limi</option>
+                        <option value="Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi">Dasturiy mahsulotlarni
+                            sinovdan o'tkazish
                             bo'limi</option>
-                        <option value="Dasturiy mahsulotlarni joriy etish bo'limi">Dasturiy mahsulotlarni joriy etish bo'limi</option>
-                        <option value="AKT startuplarni qo'llab quvvatlash bo'limi">AKT startuplarni qo'llab quvvatlash bo'limi</option>
-                        <option value="Patentlash va tijoratlashtirish bo'limi">Patentlash va tijor atlashtirish bo'limi</option>
+                        <option value="Dasturiy mahsulotlarni joriy etish bo'limi">Dasturiy mahsulotlarni joriy etish
+                            bo'limi</option>
+                        <option value="AKT startuplarni qo'llab quvvatlash bo'limi">AKT startuplarni qo'llab quvvatlash
+                            bo'limi</option>
+                        <option value="Patentlash va tijoratlashtirish bo'limi">Patentlash va tijor atlashtirish bo'limi
+                        </option>
                         <option value="Umumiy bo'lim">Umumiy bo'lim</option>
                     </select>
                 </div>
@@ -118,9 +149,7 @@
     </div>
 </div>
 
-<div class="mt-6">
-    <a href="/" class="back-link">← Back to Verification</a>
-</div>
+
 
 <style>
     .registration-grid {
@@ -406,7 +435,7 @@
             if (result.success) {
                 statusDiv.textContent = "✅ " + result.message;
                 statusDiv.className = "status-message success";
-                setTimeout(() => window.location.href = '/users', 2000);
+                setTimeout(() => window.location.href = '/', 2000);
             } else {
                 statusDiv.textContent = "❌ " + result.message;
                 statusDiv.className = "status-message error";

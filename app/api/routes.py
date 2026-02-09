@@ -286,28 +286,58 @@ def get_current_admin(request: Request):
     session_id = request.cookies.get("admin_session")
     if not session_id or session_id not in active_sessions:
         return None
-    return active_sessions[session_id]
+    
+    username = active_sessions[session_id]
+    # Fetch full user details (mocking verification again or just trusting session)
+    # Ideally we should store user role in session or fetch from DB. 
+    # For now, let's fetch from DB to be safe and get the role.
+    from app.services.admin_db import _load_admins # Or expose a get_user method
+    admins = _load_admins()
+    user = admins.get(username)
+    if user and "role" not in user:
+        user["role"] = "admin"
+    return user
 
 @router.get("/")
 async def index(request: Request):
+    user = get_current_admin(request)
+    if not user:
+        return RedirectResponse(url="/login?next=/", status_code=303)
+        
+    # Strict separation: Admin users cannot access Kiosk dashboard
+    if user.get("role") == "admin":
+        return RedirectResponse(url="/admin", status_code=303)
+
+        
     active_users = len(recognizer.user_encodings)
     return templates.TemplateResponse("index.html", {
         "request": request,
-        "active_users_count": active_users
+        "active_users_count": active_users,
+        "user": user
     })
 
 @router.get("/login")
-async def login_page(request: Request):
-    return templates.TemplateResponse("login.html", {"request": request})
+async def login_page(request: Request, next: str = "/admin"):
+    return templates.TemplateResponse("login.html", {"request": request, "next": next})
 
 @router.post("/login")
-async def login_action(request: Request, username: str = Form(...), password: str = Form(...)):
-    if admin_db.verify_admin(username, password):
+async def login_action(request: Request, username: str = Form(...), password: str = Form(...), next: str = "/admin"):
+    user = admin_db.verify_admin(username, password)
+    if user:
         # Create session
         token = secrets.token_hex(16)
         active_sessions[token] = username
         
-        response = RedirectResponse(url="/admin", status_code=303)
+        # Role-based redirection
+        role = user.get("role", "admin")
+        
+        if role == "kiosk":
+            redirect_url = "/" # Kiosk users ALWAYS go to kiosk page
+        else:
+            # Admins go to requested page or default admin dashboard
+            redirect_url = next if next.startswith("/") else "/admin"
+        
+        response = RedirectResponse(url=redirect_url, status_code=303)
         response.set_cookie(key="admin_session", value=token, httponly=True)
         return response
     else:
@@ -331,6 +361,11 @@ async def admin_dashboard(request: Request):
     user = get_current_admin(request)
     if not user:
         return RedirectResponse(url="/login", status_code=303)
+    
+    # Check if user has admin role
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/admin", status_code=303)
+
     
     # --- Statistics Calculation ---
     
@@ -675,8 +710,13 @@ async def video_feed(mode: str = "verification"):
 
 @router.get("/register")
 async def register_page(request: Request):
-    if not get_current_admin(request):
+    user = get_current_admin(request)
+    if not user:
         return RedirectResponse(url="/login", status_code=303)
+    
+    # Allow both admin and kiosk roles
+    # if user.get("role") not in ["admin", "kiosk"]:
+    #    return RedirectResponse(url="/", status_code=303)
         
     return templates.TemplateResponse("register.html", {"request": request})
 
@@ -832,8 +872,12 @@ async def complete_registration(
 
 @router.get("/users")
 async def list_users(request: Request):
-    if not get_current_admin(request):
+    user = get_current_admin(request)
+    if not user:
         return RedirectResponse(url="/login", status_code=303)
+    
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/users", status_code=303)
         
     # Get UNIQUE user names from recognizer (not flat list which has duplicates)
     unique_names = list(recognizer.user_encodings.keys())
@@ -852,8 +896,12 @@ async def list_users(request: Request):
 
 @router.get("/users/{name}")
 async def user_detail(request: Request, name: str):
-    if not get_current_admin(request):
+    user = get_current_admin(request)
+    if not user:
         return RedirectResponse(url="/login", status_code=303)
+        
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
 
     user_dir = os.path.join(settings.IMAGES_DIR, name)
     images = []
@@ -872,6 +920,13 @@ async def user_detail(request: Request, name: str):
 
 @router.get("/users/{name}/edit")
 async def edit_user_page(request: Request, name: str):
+    user = get_current_admin(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+        
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
+        
     user_info = user_db.get_user(name) or {}
     return templates.TemplateResponse("user_edit.html", {
         "request": request,
@@ -881,12 +936,16 @@ async def edit_user_page(request: Request, name: str):
 
 @router.post("/api/users/{name}/update")
 async def update_user(
+    request: Request,
     name: str,
     full_name: str = Form(""),
     phone: str = Form(""),
     department: str = Form(""),
     position: str = Form("")
 ):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse(status_code=403, content={"message": "Unauthorized"})
     success = user_db.update_user(name, {
         "full_name": full_name,
         "phone": phone,
@@ -906,7 +965,10 @@ async def update_user(
         return JSONResponse(content={"message": f"User {name} profile created."})
 
 @router.delete("/api/users/{name}")
-async def delete_user(name: str):
+async def delete_user(request: Request, name: str):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse(status_code=403, content={"message": "Unauthorized"})
     import shutil
     # Delete from recognizer (remove ALL encodings for this user)
     if name in recognizer.user_encodings:
@@ -1036,8 +1098,12 @@ def start_attendance_processor():
 @router.get("/attendance")
 async def attendance_page(request: Request):
     """Serve the attendance dashboard page."""
-    if not get_current_admin(request):
+    user = get_current_admin(request)
+    if not user:
         return RedirectResponse(url="/login", status_code=303)
+        
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/", status_code=303)
         
     all_records = attendance_db.get_all_records()
     

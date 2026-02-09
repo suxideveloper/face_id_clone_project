@@ -18,7 +18,7 @@
                 {% if user %}{{ user[0]|upper }}{% else %}A{% endif %}
             </div>
             <div class="header-welcome">
-                <h1>Xush kelibsiz, <span class="user-highlight">{% if user %}{{ user }}{% else %}Admin{% endif
+                <h1>Xush kelibsiz, <span class="user-highlight">{% if user %}{{ user.username }}{% else %}Admin{% endif
                         %}</span>! 👋</h1>
                 <p>Bugun, <span id="current-date-text"></span> — Jamoangizdagi holat.</p>
             </div>
@@ -114,10 +114,7 @@
                     <h2>⚡ Tezkor amallar</h2>
                 </div>
                 <div class="card-body quick-actions">
-                    <a href="/register" class="action-btn primary">
-                        <span class="action-icon">+</span>
-                        <span>Xodim qo'shish</span>
-                    </a>
+
                     <a href="/attendance" class="action-btn secondary">
                         <span class="action-icon">📊</span>
                         <span>Davomat</span>
@@ -126,10 +123,7 @@
                         <span class="action-icon">👥</span>
                         <span>Xodimlar</span>
                     </a>
-                    <a href="/" class="action-btn kiosk" target="_blank">
-                        <span class="action-icon">🖥️</span>
-                        <span>Kiosk</span>
-                    </a>
+
                 </div>
             </div>
         </div>
@@ -485,10 +479,7 @@
         color: #166534;
     }
 
-    .action-btn.kiosk {
-        background: #fef3c7;
-        color: #b45309;
-    }
+
 
     .action-btn:hover {
         transform: translateX(4px);
