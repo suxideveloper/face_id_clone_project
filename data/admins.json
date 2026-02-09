@@ -3,5 +3,10 @@
         "username": "airiadmin",
         "hashed_password": "86c9fff0ea28bb49f647b3fd604279e273622abad89239c21c0cedc7835e78e0",
         "salt": "bf0cb15fc3113cf5dce5d98093281ad7"
+    },
+    "admin": {
+        "username": "admin",
+        "hashed_password": "c4d16c11c5ccd81c23484edaaaf536e7e76339ccd6f7c4a32c7583e7b499af8a",
+        "salt": "73df7d262c04534417857f6d9b6cc58e"
     }
 }
