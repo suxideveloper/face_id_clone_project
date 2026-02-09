@@ -8,5 +8,15 @@
       "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-06_checkin_122306.jpg",
       "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-06_checkout_160051.jpg"
     }
+  },
+  "2026-02-09": {
+    "Suxrob": {
+      "worker_id": "Suxrob",
+      "date": "2026-02-09",
+      "check_in_time": "2026-02-09T11:12:03.393100",
+      "check_out_time": "2026-02-09T12:36:17.034745",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkin_111203.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkout_123617.jpg"
+    }
   }
 }
