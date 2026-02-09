@@ -37,224 +37,145 @@ face_tracker = Tracker()
 registration_state = {"name": "", "stage": -1, "hold_progress": 0.0}
 
 # Generator for video stream
+# Generator for video stream
 def generate_frames(mode="verification"):
+    print(f"Video feed generator started (mode: {mode})")
     while True:
-        frame = camera_service.get_frame()
-        if frame is None:
-            time.sleep(0.01)
-            continue
+        try:
+            frame = camera_service.get_frame()
+            if frame is None:
+                time.sleep(0.01)
+                continue
+                
+            h, w = frame.shape[:2]
             
-        h, w = frame.shape[:2]
-        
-        # Detect faces
-        detections = detector.detect(frame)
-        
-        if mode == "registration":
-            # [REGISTRATION LOGIC REMAINS LARGELY SAME BUT UPDATED TO USE DETECTIONS]
-            # ... (keeping current high-tech registration UI as is) ...
-            COLOR_CYAN = (255, 255, 0)
-            COLOR_MAGENTA = (120, 10, 255)
-            COLOR_WHITE = (255, 255, 255)
+            # Detect faces
+            detections = detector.detect(frame)
             
-            bracket_w, bracket_h = int(w * 0.45), int(h * 0.7)
-            bx1, by1 = (w - bracket_w) // 2, (h - bracket_h) // 2
-            bx2, by2 = bx1 + bracket_w, by1 + bracket_h
-            
-            face_in_frame = False
-            best_face = None
-            for (x1, y1, x2, y2), conf in detections:
-                fx, fy = (x1 + x2) // 2, (y1 + y2) // 2
-                if bx1 < fx < bx2 and by1 < fy < by2:
-                    face_in_frame = True
-                    best_face = (x1, y1, x2, y2)
-                    break
-            
-            l_size = 40; t = 3
-            cv2.line(frame, (bx1, by1), (bx1 + l_size, by1), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx1, by1), (bx1, by1 + l_size), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx2, by1), (bx2 - l_size, by1), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx2, by1), (bx2, by1 + l_size), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx1, by2), (bx1 + l_size, by2), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx1, by2), (bx1, by2 - l_size), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx2, by2), (bx2 - l_size, by2), COLOR_MAGENTA, t)
-            cv2.line(frame, (bx2, by2), (bx2, by2 - l_size), COLOR_MAGENTA, t)
+            if mode == "registration":
+                COLOR_CYAN = (255, 255, 0)
+                COLOR_MAGENTA = (120, 10, 255)
+                COLOR_WHITE = (255, 255, 255)
+                
+                bracket_w, bracket_h = int(w * 0.45), int(h * 0.7)
+                bx1, by1 = (w - bracket_w) // 2, (h - bracket_h) // 2
+                bx2, by2 = bx1 + bracket_w, by1 + bracket_h
+                
+                face_in_frame = False
+                best_face = None
+                for (x1, y1, x2, y2), conf in detections:
+                    fx, fy = (x1 + x2) // 2, (y1 + y2) // 2
+                    if bx1 < fx < bx2 and by1 < fy < by2:
+                        face_in_frame = True
+                        best_face = (x1, y1, x2, y2)
+                        break
+                
+                l_size = 40; t = 3
+                cv2.line(frame, (bx1, by1), (bx1 + l_size, by1), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx1, by1), (bx1, by1 + l_size), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx2, by1), (bx2 - l_size, by1), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx2, by1), (bx2, by1 + l_size), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx1, by2), (bx1 + l_size, by2), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx1, by2), (bx1, by2 - l_size), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx2, by2), (bx2 - l_size, by2), COLOR_MAGENTA, t)
+                cv2.line(frame, (bx2, by2), (bx2, by2 - l_size), COLOR_MAGENTA, t)
 
-            # Pose instruction data with icons
-            stages = [
-                ("LOOK STRAIGHT", "[ @ ]"),      # Front
-                ("TURN HEAD LEFT", "[ <-- ]"),   # Left
-                ("TURN HEAD RIGHT", "[ --> ]"),  # Right
-                ("TILT CHIN UP", "[ ^ ]"),       # Up
-                ("TILT CHIN DOWN", "[ v ]")      # Down
-            ]
-            curr_stage = registration_state["stage"]
-            
-            # Draw dark strip at bottom for text readability
-            cv2.rectangle(frame, (0, h - 100), (w, h), (30, 30, 30), -1)
-            
-            if curr_stage >= 0 and curr_stage < 5:
-                # During active registration - show current pose instruction
-                stage_text, stage_icon = stages[curr_stage]
+                stages = [
+                    ("LOOK STRAIGHT", "[ @ ]"),      # Front
+                    ("TURN HEAD LEFT", "[ <-- ]"),   # Left
+                    ("TURN HEAD RIGHT", "[ --> ]"),  # Right
+                    ("TILT CHIN UP", "[ ^ ]"),       # Up
+                    ("TILT CHIN DOWN", "[ v ]")      # Down
+                ]
+                curr_stage = registration_state["stage"]
                 
-                # Progress dots (top of dark strip)
-                dot_y = h - 85
-                dot_start_x = (w - 150) // 2
-                for i in range(5):
-                    dot_x = dot_start_x + i * 35
-                    if i < curr_stage:
-                        cv2.circle(frame, (dot_x, dot_y), 8, (0, 255, 0), -1)  # Complete - green
-                    elif i == curr_stage:
-                        cv2.circle(frame, (dot_x, dot_y), 10, (0, 200, 255), -1)  # Active - orange
-                    else:
-                        cv2.circle(frame, (dot_x, dot_y), 6, (80, 80, 80), -1)  # Pending - gray
+                cv2.rectangle(frame, (0, h - 100), (w, h), (30, 30, 30), -1)
                 
-                # Get hold progress from state
-                hold_progress = registration_state.get("hold_progress", 0.0)
-                
-                # Draw hold progress bar if face is in frame
-                if face_in_frame and hold_progress > 0:
-                    bar_width = int(w * 0.4)
-                    bar_height = 15
-                    bar_x = (w - bar_width) // 2
-                    bar_y = by2 + 20
-                    # Background
-                    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (50, 50, 50), -1)
-                    # Progress fill
-                    fill_width = int(bar_width * min(hold_progress, 1.0))
-                    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_width, bar_y + bar_height), (0, 255, 0), -1)
-                    # Border
-                    cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (255, 255, 255), 2)
-                
-                # Pose instruction text (large)
-                inst_text = f"STEP {curr_stage + 1}/5: {stage_text}"
-                if face_in_frame:
-                    color = (0, 255, 0)  # Green - correct position
-                    status_text = f"HOLD STILL... {int(hold_progress * 100)}%" if hold_progress > 0 else "DETECTED! HOLD STILL..."
+                if curr_stage >= 0 and curr_stage < 5:
+                    stage_text, stage_icon = stages[curr_stage]
+                    dot_y = h - 85
+                    dot_start_x = (w - 150) // 2
+                    for i in range(5):
+                        dot_x = dot_start_x + i * 35
+                        if i < curr_stage:
+                            cv2.circle(frame, (dot_x, dot_y), 8, (0, 255, 0), -1)
+                        elif i == curr_stage:
+                            cv2.circle(frame, (dot_x, dot_y), 10, (0, 200, 255), -1)
+                        else:
+                            cv2.circle(frame, (dot_x, dot_y), 6, (80, 80, 80), -1)
+                    
+                    hold_progress = registration_state.get("hold_progress", 0.0)
+                    if face_in_frame and hold_progress > 0:
+                        bar_width, bar_height = int(w * 0.4), 15
+                        bar_x, bar_y = (w - bar_width) // 2, by2 + 20
+                        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (50, 50, 50), -1)
+                        fill_width = int(bar_width * min(hold_progress, 1.0))
+                        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + fill_width, bar_y + bar_height), (0, 255, 0), -1)
+                        cv2.rectangle(frame, (bar_x, bar_y), (bar_x + bar_width, bar_y + bar_height), (255, 255, 255), 2)
+                    
+                    inst_text = f"STEP {curr_stage + 1}/5: {stage_text}"
+                    color = (0, 255, 0) if face_in_frame else (0, 0, 255)
+                    status_text = f"HOLD STILL... {int(hold_progress * 100)}%" if face_in_frame and hold_progress > 0 else ("DETECTED! HOLD STILL..." if face_in_frame else "MOVE INTO FRAME!")
+                    
+                    tw = cv2.getTextSize(inst_text, cv2.FONT_HERSHEY_DUPLEX, 1.2, 2)[0][0]
+                    cv2.putText(frame, inst_text, ((w - tw) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.2, color, 2, cv2.LINE_AA)
+                    sw = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0][0]
+                    cv2.putText(frame, status_text, ((w - sw) // 2, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
+                    iw = cv2.getTextSize(stage_icon, cv2.FONT_HERSHEY_DUPLEX, 2.0, 3)[0][0]
+                    cv2.putText(frame, stage_icon, ((w - iw) // 2, by1 + 60), cv2.FONT_HERSHEY_DUPLEX, 2.0, (255, 255, 255), 3, cv2.LINE_AA)
+                    
+                elif curr_stage >= 5:
+                    cv2.putText(frame, "ALL POSES CAPTURED!", ((w - 400) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.3, (0, 255, 0), 2, cv2.LINE_AA)
                 else:
-                    color = (0, 0, 255)  # Red - need to position face
-                    status_text = "MOVE INTO FRAME!"
+                    inst_text = "READY FOR REGISTRATION" if face_in_frame else "POSITION YOUR FACE IN THE FRAME"
+                    color = (0, 255, 0) if face_in_frame else (0, 165, 255)
+                    tw = cv2.getTextSize(inst_text, cv2.FONT_HERSHEY_DUPLEX, 1.0, 2)[0][0]
+                    cv2.putText(frame, inst_text, ((w - tw) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.0, color, 2, cv2.LINE_AA)
                 
-                # Main instruction (centered)
-                tw = cv2.getTextSize(inst_text, cv2.FONT_HERSHEY_DUPLEX, 1.2, 2)[0][0]
-                cv2.putText(frame, inst_text, ((w - tw) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.2, color, 2, cv2.LINE_AA)
-                
-                # Status text below
-                sw = cv2.getTextSize(status_text, cv2.FONT_HERSHEY_SIMPLEX, 0.8, 2)[0][0]
-                cv2.putText(frame, status_text, ((w - sw) // 2, h - 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2, cv2.LINE_AA)
-                
-                # Icon in center of bracket area
-                iw = cv2.getTextSize(stage_icon, cv2.FONT_HERSHEY_DUPLEX, 2.0, 3)[0][0]
-                cv2.putText(frame, stage_icon, ((w - iw) // 2, by1 + 60), cv2.FONT_HERSHEY_DUPLEX, 2.0, (255, 255, 255), 3, cv2.LINE_AA)
-                
-            elif curr_stage >= 5:
-                # Complete
-                cv2.putText(frame, "ALL POSES CAPTURED!", ((w - 400) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.3, (0, 255, 0), 2, cv2.LINE_AA)
+                if face_in_frame and best_face:
+                    x1, y1, x2, y2 = best_face
+                    pulse = int(4 + 2 * np.sin(time.time() * 4))
+                    face_color = (0, 255, 0) if curr_stage >= 0 else COLOR_CYAN
+                    cv2.circle(frame, (x1, y1), pulse, face_color, -1)
+                    cv2.circle(frame, (x2, y1), pulse, face_color, -1)
+                    cv2.circle(frame, (x1, y2), pulse, face_color, -1)
+                    cv2.circle(frame, (x2, y2), pulse, face_color, -1)
             else:
-                # Before registration starts - show ready status
-                if face_in_frame:
-                    inst_text = "READY FOR REGISTRATION"
-                    color = (0, 255, 0)  # Green
-                else:
-                    inst_text = "POSITION YOUR FACE IN THE FRAME"
-                    color = (0, 165, 255)  # Orange
-
-                tw = cv2.getTextSize(inst_text, cv2.FONT_HERSHEY_DUPLEX, 1.0, 2)[0][0]
-                cv2.putText(frame, inst_text, ((w - tw) // 2, h - 50), cv2.FONT_HERSHEY_DUPLEX, 1.0, color, 2, cv2.LINE_AA)
-
-            # Face corner indicators
-            if face_in_frame and best_face:
-                x1, y1, x2, y2 = best_face
-                pulse = int(4 + 2 * np.sin(time.time() * 4))
-                face_color = (0, 255, 0) if curr_stage >= 0 else COLOR_CYAN
-                cv2.circle(frame, (x1, y1), pulse, face_color, -1)
-                cv2.circle(frame, (x2, y1), pulse, face_color, -1)
-                cv2.circle(frame, (x1, y2), pulse, face_color, -1)
-                cv2.circle(frame, (x2, y2), pulse, face_color, -1)
-
-        else:
-            # TRACKING & RECOGNITION MODE
-            try:
-                # Convert detections to bboxes for the tracker
-                bbox_list = []
-                for det in detections:
-                    # det is ((x1, y1, x2, y2), conf)
-                    bbox, conf = det
-                    bbox_list.append(bbox)
-                
+                # TRACKING & RECOGNITION MODE
+                bbox_list = [det[0] for det in detections]
                 tracked_faces = face_tracker.update(bbox_list)
                 
                 for face in tracked_faces:
-                    tid = face["id"]
-                    x1, y1, x2, y2 = face["bbox"]
-                    name = face["name"]
+                    tid, (x1, y1, x2, y2), name = face["id"], face["bbox"], face["name"]
                     needs_reverify = face.get("needs_reverify", False)
                     
-                    # Recognition: if name not cached OR needs re-verification
                     if name is None or needs_reverify:
                         try:
                             name = recognizer.verify(frame, (x1, y1, x2, y2))
                             face_tracker.set_name(tid, name)
-                        except Exception:
+                        except:
                             name = "Unknown"
                             face_tracker.set_name(tid, name)
                     
-                    # Attendance logging & Visual Feedback
-                    # Allow "Unknown" to pass through for visual feedback (red alert)
                     if name:
                         current_time = time.time()
-                        last_db = attendance_debounce.get(name, 0)
-                        last_visual = visual_debounce.get(name, 0)
+                        last_db, last_visual = attendance_debounce.get(name, 0), visual_debounce.get(name, 0)
+                        should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
                         
-                        # Logic for Known Users
-                        if name != "Unknown":
-                            should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
-                            should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
+                        if should_show_visual:
+                            visual_debounce[name] = current_time
+                            log_db = (name != "Unknown" and current_time - last_db >= DEBOUNCE_SECONDS)
+                            if log_db: attendance_debounce[name] = current_time
                             
-                            if should_show_visual:
-                                visual_debounce[name] = current_time
-                                if should_log_db:
-                                    attendance_debounce[name] = current_time
-                                
-                                try:
-                                    attendance_queue.put_nowait({
-                                        "worker_id": name,
-                                        "frame": frame.copy(),
-                                        "log_db": should_log_db
-                                    })
-                                except asyncio.QueueFull:
-                                    pass
+                            try:
+                                attendance_queue.put_nowait({"worker_id": name, "frame": frame.copy(), "log_db": log_db})
+                            except asyncio.QueueFull: pass
                         
-                        # Logic for Unknown Users
-                        else:
-                            # For unknown, we don't log to DB, but we want to trigger visual feedback
-                            # Use visual debounce to avoid flooding WebSocket
-                            should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
-                            
-                            if should_show_visual:
-                                visual_debounce[name] = current_time
-                                try:
-                                    attendance_queue.put_nowait({
-                                        "worker_id": "Unknown",
-                                        "frame": frame.copy(), # Frame might be needed if we want to save unknown faces later
-                                        "log_db": False
-                                    })
-                                except asyncio.QueueFull:
-                                    pass
-                    
-                    # Draw Results only if recognized
-                    # Draw Results (Verified = Green, Unknown = Red)
-                    if name:
-                        if name == "Unknown":
-                            color = (0, 0, 255) # Red
-                            label = "Unknown"
-                            text_color = (255, 255, 255) # White text
-                        else:
-                            color = (0, 255, 0) # Green
-                            label = f"ID:{tid} | {name}"
-                            text_color = (0, 0, 0) # Black text
-
-                        # High-tech corner bounding box
-                        t = 2; l = 20
+                        color = (0, 255, 0) if name != "Unknown" else (0, 0, 255)
+                        label = f"ID:{tid} | {name}" if name != "Unknown" else "Unknown"
+                        text_color = (0, 0, 0) if name != "Unknown" else (255, 255, 255)
+                        
+                        t, l = 2, 20
                         cv2.line(frame, (x1, y1), (x1+l, y1), color, t)
                         cv2.line(frame, (x1, y1), (x1, y1+l), color, t)
                         cv2.line(frame, (x2, y1), (x2-l, y1), color, t)
@@ -267,14 +188,16 @@ def generate_frames(mode="verification"):
                         t_size = cv2.getTextSize(label, cv2.FONT_HERSHEY_DUPLEX, 0.7, 1)[0]
                         cv2.rectangle(frame, (x1, y1-30), (x1 + t_size[0] + 10, y1), color, -1)
                         cv2.putText(frame, label, (x1+5, y1-10), cv2.FONT_HERSHEY_DUPLEX, 0.7, text_color, 1, cv2.LINE_AA)
-            except Exception as e:
-                # Log error but don't crash the stream
-                print(f"Tracking error: {e}")
             
-        ret, buffer = cv2.imencode('.jpg', frame)
-        if ret:
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            ret, buffer = cv2.imencode('.jpg', frame)
+            if ret:
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+        except Exception as e:
+            print(f"Error in generate_frames: {e}")
+            import traceback
+            traceback.print_exc()
+            time.sleep(1)
 
 from app.services import admin_db
 import secrets
@@ -672,6 +595,7 @@ async def get_user_attendance_stats(name: str):
 @router.websocket("/ws/video_input")
 async def video_input(websocket: WebSocket):
     await websocket.accept()
+    print(f"Client connected for video input: {websocket.client}")
     try:
         while True:
             # Receive bytes from client
@@ -679,7 +603,7 @@ async def video_input(websocket: WebSocket):
             # Process frame
             camera_service.process_input_frame(data)
     except WebSocketDisconnect:
-        pass
+        print("Video input client disconnected")
     except Exception as e:
         print(f"Video input error: {e}")
 
