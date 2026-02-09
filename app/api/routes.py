@@ -669,6 +669,20 @@ async def get_user_attendance_stats(name: str):
         }
     })
 
+@router.websocket("/ws/video_input")
+async def video_input(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            # Receive bytes from client
+            data = await websocket.receive_bytes()
+            # Process frame
+            camera_service.process_input_frame(data)
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        print(f"Video input error: {e}")
+
 @router.get("/video_feed")
 async def video_feed(mode: str = "verification"):
     return StreamingResponse(generate_frames(mode), media_type="multipart/x-mixed-replace; boundary=frame")

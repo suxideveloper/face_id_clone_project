@@ -19,6 +19,11 @@
         <!-- Left: Video Feed -->
         <div class="video-section">
             <div class="video-card">
+                <!-- Hidden elements for capturing local camera -->
+                <video id="localVideo" autoplay playsinline muted style="display:none;"></video>
+                <canvas id="videoCanvas" style="display:none;"></canvas>
+
+                <!-- Display processed feed from server -->
                 <img src="/video_feed" alt="Live Verification Feed" class="live-feed">
             </div>
 
@@ -584,6 +589,80 @@
     const connectionDot = document.getElementById('connectionDot');
     const connectionStatus = document.getElementById('connectionStatus');
 
+
+    // --- Camera Streaming Logic ---
+    const localVideo = document.getElementById('localVideo');
+    const videoCanvas = document.getElementById('videoCanvas');
+    const videoCtx = videoCanvas.getContext('2d');
+    let videoSocket = null;
+    let cameraStream = null;
+
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 },
+                    facingMode: "user"
+                }
+            });
+            localVideo.srcObject = stream;
+            cameraStream = stream;
+
+            // Wait for video to be ready
+            localVideo.onloadedmetadata = () => {
+                videoCanvas.width = localVideo.videoWidth;
+                videoCanvas.height = localVideo.videoHeight;
+                connectVideoSocket();
+            };
+        } catch (err) {
+            console.error("Error accessing camera:", err);
+            // Don't show offline status yet, let the processed feed show the error
+            // connectionStatus.textContent = "Camera Access Denied";
+            // connectionDot.classList.add('offline');
+        }
+    }
+
+    function connectVideoSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        videoSocket = new WebSocket(`${protocol}//${window.location.host}/ws/video_input`);
+
+        videoSocket.onopen = () => {
+            console.log("Video socket connected");
+            sendFrameLoop();
+        };
+
+        videoSocket.onclose = () => {
+            console.log("Video socket closed. Reconnecting...");
+            setTimeout(connectVideoSocket, 2000);
+        };
+
+        videoSocket.onerror = (err) => console.error("Video socket error", err);
+    }
+
+    function sendFrameLoop() {
+        if (videoSocket && videoSocket.readyState === WebSocket.OPEN && localVideo.readyState === localVideo.HAVE_ENOUGH_DATA) {
+            // Draw frame to canvas
+            videoCtx.drawImage(localVideo, 0, 0);
+
+            // Convert to JPEG blob
+            videoCanvas.toBlob((blob) => {
+                if (blob && videoSocket.readyState === WebSocket.OPEN) {
+                    videoSocket.send(blob);
+                }
+                // Schedule next frame (~20 FPS)
+                setTimeout(sendFrameLoop, 50);
+            }, 'image/jpeg', 0.6); // Slightly lower quality for better latency
+        } else {
+            // Fallback or initialization wait
+            setTimeout(sendFrameLoop, 100);
+        }
+    }
+
+    // Initialize Camera on Load
+    startCamera();
+
+    // --- WebSocket for Attendance Events ---
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
