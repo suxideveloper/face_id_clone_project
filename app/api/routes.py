@@ -672,6 +672,7 @@ async def get_user_attendance_stats(name: str):
 @router.websocket("/ws/video_input")
 async def video_input(websocket: WebSocket):
     await websocket.accept()
+    print(f"Client connected for video input: {websocket.client}")
     try:
         while True:
             # Receive bytes from client
@@ -679,7 +680,7 @@ async def video_input(websocket: WebSocket):
             # Process frame
             camera_service.process_input_frame(data)
     except WebSocketDisconnect:
-        pass
+        print("Video input client disconnected")
     except Exception as e:
         print(f"Video input error: {e}")
 

@@ -90,6 +90,11 @@ class CameraService:
                     self.last_frame = frame
                     self.use_virtual_camera = True
                     self.last_virtual_frame_time = time.time()
+                    # Debug log occasional frames
+                    if int(self.last_virtual_frame_time) % 10 == 0:
+                        print(f"Processed virtual frame: {frame.shape}")
+            else:
+                print("Failed to decode frame bytes.")
         except Exception as e:
             print(f"Error processing input frame: {e}")
 
