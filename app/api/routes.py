@@ -198,10 +198,16 @@ def generate_frames(mode="verification"):
                         cv2.rectangle(frame, (x1, y1-30), (x1 + t_size[0] + 10, y1), color, -1)
                         cv2.putText(frame, label, (x1+5, y1-10), cv2.FONT_HERSHEY_DUPLEX, 0.7, text_color, 1, cv2.LINE_AA)
             
+            if frame is None:
+                continue
+                
             ret, buffer = cv2.imencode('.jpg', frame)
-            if ret:
+            if ret and buffer is not None:
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
+            else:
+                log_debug(f"Failed to encode frame: ret={ret}")
+                time.sleep(0.01)
         except Exception as e:
             msg = f"Error in generate_frames: {e}"
             print(msg)

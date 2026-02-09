@@ -610,10 +610,18 @@
                 }
             });
             console.log("Camera access granted.");
+            // Setup event listener BEFORE setting srcObject to avoid race conditions
+            localVideo.onloadedmetadata = () => {
+                videoCanvas.width = localVideo.videoWidth;
+                videoCanvas.height = localVideo.videoHeight;
+                console.log(`Video metadata loaded: ${videoCanvas.width}x${videoCanvas.height}`);
+                connectVideoSocket();
+            };
+
             localVideo.srcObject = stream;
             cameraStream = stream;
 
-            // Explicitly call play() to ensure video is running
+            // Explicitly call play()
             try {
                 await localVideo.play();
                 console.log("Local video playback started.");
@@ -621,13 +629,11 @@
                 console.error("Local video play() failed:", pErr);
             }
 
-            // Wait for video to be ready
-            localVideo.onloadedmetadata = () => {
-                videoCanvas.width = localVideo.videoWidth;
-                videoCanvas.height = localVideo.videoHeight;
-                console.log(`Video metadata loaded: ${videoCanvas.width}x${videoCanvas.height}`);
-                connectVideoSocket();
-            };
+            // Fallback: If metadata already loaded (width > 0), trigger manually if needed
+            if (localVideo.videoWidth > 0 && !videoSocket) {
+                console.log("Metadata already loaded, triggering connect manually.");
+                localVideo.dispatchEvent(new Event('loadedmetadata'));
+            }
         } catch (err) {
             console.error("Error accessing camera:", err);
             connectionStatus.textContent = "Camera Blocked or Not Found";
