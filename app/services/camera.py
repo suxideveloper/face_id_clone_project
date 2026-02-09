@@ -77,6 +77,14 @@ class CameraService:
         cv2.putText(frame, "Check Connection", (180, 280), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
         return frame
 
+    def _log(self, message):
+        """Append a message to a debug log file."""
+        try:
+            with open("debug.log", "a") as f:
+                f.write(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+        except:
+            pass
+
     def process_input_frame(self, frame_bytes):
         """Process a frame received from an external source (client)."""
         try:
@@ -90,13 +98,20 @@ class CameraService:
                     self.last_frame = frame
                     self.use_virtual_camera = True
                     self.last_virtual_frame_time = time.time()
-                    # Debug log occasional frames
-                    if int(self.last_virtual_frame_time * 2) % 20 == 0:
-                        print(f"Received virtual frame from client. Shape: {frame.shape}")
+                    
+                    # Log reception status occasionally
+                    if int(self.last_virtual_frame_time) % 5 == 0 and int(self.last_virtual_frame_time * 10) % 50 == 0:
+                        msg = f"Received virtual frame from client. Shape: {frame.shape}"
+                        print(msg)
+                        self._log(msg)
             else:
-                print("Failed to decode frame bytes from client.")
+                msg = "Failed to decode frame bytes from client."
+                print(msg)
+                self._log(msg)
         except Exception as e:
-            print(f"Error processing input frame: {e}")
+            msg = f"Error processing input frame: {e}"
+            print(msg)
+            self._log(msg)
 
     def get_frame(self):
         with self.lock:

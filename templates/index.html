@@ -598,6 +598,7 @@
     let cameraStream = null;
 
     async function startCamera() {
+        console.log("Requesting camera access...");
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: {
@@ -606,26 +607,38 @@
                     facingMode: "user"
                 }
             });
+            console.log("Camera access granted.");
             localVideo.srcObject = stream;
             cameraStream = stream;
+
+            // Explicitly call play() to ensure video is running
+            try {
+                await localVideo.play();
+                console.log("Local video playback started.");
+            } catch (pErr) {
+                console.error("Local video play() failed:", pErr);
+            }
 
             // Wait for video to be ready
             localVideo.onloadedmetadata = () => {
                 videoCanvas.width = localVideo.videoWidth;
                 videoCanvas.height = localVideo.videoHeight;
+                console.log(`Video metadata loaded: ${videoCanvas.width}x${videoCanvas.height}`);
                 connectVideoSocket();
             };
         } catch (err) {
             console.error("Error accessing camera:", err);
-            // Don't show offline status yet, let the processed feed show the error
-            // connectionStatus.textContent = "Camera Access Denied";
-            // connectionDot.classList.add('offline');
+            connectionStatus.textContent = "Camera Blocked or Not Found";
+            connectionStatus.style.color = "var(--accent-red)";
         }
     }
 
     function connectVideoSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        videoSocket = new WebSocket(`${protocol}//${window.location.host}/ws/video_input`);
+        const socketUrl = `${protocol}//${window.location.host}/ws/video_input`;
+        console.log(`Connecting to video socket: ${socketUrl}`);
+
+        videoSocket = new WebSocket(socketUrl);
 
         videoSocket.onopen = () => {
             console.log("Video socket connected");
@@ -633,15 +646,16 @@
         };
 
         videoSocket.onclose = () => {
-            console.log("Video socket closed. Reconnecting...");
+            console.warn("Video socket closed. Reconnecting...");
             setTimeout(connectVideoSocket, 2000);
         };
 
         videoSocket.onerror = (err) => console.error("Video socket error", err);
     }
 
+    let framesSent = 0;
     function sendFrameLoop() {
-        if (videoSocket && videoSocket.readyState === WebSocket.OPEN && localVideo.readyState === localVideo.HAVE_ENOUGH_DATA) {
+        if (videoSocket && videoSocket.readyState === WebSocket.OPEN && localVideo.readyState >= 2) {
             // Draw frame to canvas
             videoCtx.drawImage(localVideo, 0, 0);
 
@@ -649,12 +663,20 @@
             videoCanvas.toBlob((blob) => {
                 if (blob && videoSocket.readyState === WebSocket.OPEN) {
                     videoSocket.send(blob);
+                    framesSent++;
+                    if (framesSent % 100 === 0) console.log(`Sent ${framesSent} frames to server`);
                 }
                 // Schedule next frame (~20 FPS)
                 setTimeout(sendFrameLoop, 50);
-            }, 'image/jpeg', 0.6); // Slightly lower quality for better latency
+            }, 'image/jpeg', 0.6);
         } else {
-            // Fallback or initialization wait
+            // If video not ready yet, wait and retry
+            if (framesSent === 0 && Math.random() < 0.05) {
+                console.log("Waiting for video/socket to be ready...", {
+                    socket: videoSocket ? videoSocket.readyState : 'null',
+                    video: localVideo.readyState
+                });
+            }
             setTimeout(sendFrameLoop, 100);
         }
     }

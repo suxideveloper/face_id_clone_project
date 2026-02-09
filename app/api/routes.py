@@ -37,14 +37,23 @@ face_tracker = Tracker()
 registration_state = {"name": "", "stage": -1, "hold_progress": 0.0}
 
 # Generator for video stream
+# Helper for file logging
+def log_debug(message):
+    try:
+        with open("debug.log", "a") as f:
+            f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {message}\n")
+    except:
+        pass
+
 # Generator for video stream
 def generate_frames(mode="verification"):
     print(f"Video feed generator started (mode: {mode})")
+    log_debug(f"Video feed generator started (mode: {mode})")
     while True:
         try:
             frame = camera_service.get_frame()
             if frame is None:
-                time.sleep(0.01)
+                time.sleep(0.05)
                 continue
                 
             h, w = frame.shape[:2]
@@ -194,7 +203,9 @@ def generate_frames(mode="verification"):
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + buffer.tobytes() + b'\r\n')
         except Exception as e:
-            print(f"Error in generate_frames: {e}")
+            msg = f"Error in generate_frames: {e}"
+            print(msg)
+            log_debug(msg)
             import traceback
             traceback.print_exc()
             time.sleep(1)
@@ -596,6 +607,7 @@ async def get_user_attendance_stats(name: str):
 async def video_input(websocket: WebSocket):
     await websocket.accept()
     print(f"Client connected for video input: {websocket.client}")
+    log_debug(f"Client connected for video input: {websocket.client}")
     try:
         while True:
             # Receive bytes from client
@@ -604,8 +616,11 @@ async def video_input(websocket: WebSocket):
             camera_service.process_input_frame(data)
     except WebSocketDisconnect:
         print("Video input client disconnected")
+        log_debug("Video input client disconnected")
     except Exception as e:
-        print(f"Video input error: {e}")
+        msg = f"Video input error: {e}"
+        print(msg)
+        log_debug(msg)
 
 @router.get("/video_feed")
 async def video_feed(mode: str = "verification"):
