@@ -650,15 +650,23 @@
 
         videoSocket.onopen = () => {
             console.log("Video socket connected");
+            connectionStatus.textContent = "Video Uplink Active"; // Feedback!
+            connectionDot.classList.remove('offline');
             sendFrameLoop();
         };
 
         videoSocket.onclose = () => {
             console.warn("Video socket closed. Reconnecting...");
+            connectionStatus.textContent = "Video Uplink Lost";
+            connectionDot.classList.add('offline');
             setTimeout(connectVideoSocket, 2000);
         };
 
-        videoSocket.onerror = (err) => console.error("Video socket error", err);
+        videoSocket.onerror = (err) => {
+            console.error("Video socket error", err);
+            connectionStatus.textContent = "Video Uplink Error";
+            connectionStatus.style.color = "var(--accent-red)";
+        };
     }
 
     let framesSent = 0;

@@ -12,13 +12,13 @@ class CameraService:
         self.last_frame = None
         
         # Virtual Camera State
-        self.use_virtual_camera = False
+        self.use_virtual_camera = True  # Default to True for Server Deployments
         self.last_virtual_frame_time = 0
         self.virtual_frame_timeout = 2.0 # Seconds before reverting to dummy
         
         # Retry Logic
         self.last_connection_attempt = 0
-        self.connection_retry_interval = 5.0 # Wait 5s before retrying physical camera
+        self.connection_retry_interval = 10.0 # Wait 10s before retrying physical camera
 
     def connect_camera(self):
         """Attempts to connect to the configured camera source, falling back to other indices if needed."""
@@ -99,8 +99,11 @@ class CameraService:
                     self.use_virtual_camera = True
                     self.last_virtual_frame_time = time.time()
                     
-                    # Log reception status occasionally
-                    if int(self.last_virtual_frame_time) % 5 == 0 and int(self.last_virtual_frame_time * 10) % 50 == 0:
+                    # Log reception status occasionally (every ~50 frames)
+                    frame_count = getattr(self, '_frame_count', 0)
+                    self._frame_count = frame_count + 1
+                    
+                    if self._frame_count % 50 == 0:
                         msg = f"Received virtual frame from client. Shape: {frame.shape}"
                         print(msg)
                         self._log(msg)
