@@ -6,6 +6,7 @@ class FaceDetector:
     def __init__(self):
         # This will download the model if not found
         self.model = YOLO(settings.YOLO_MODEL)
+        
 
     def detect(self, frame):
         # Run inference

@@ -1,30 +1,48 @@
 {
-  "2026-02-06": {
-    "Suxrob": {
-      "worker_id": "Suxrob",
-      "date": "2026-02-06",
-      "check_in_time": "2026-02-06T12:23:06.204121",
-      "check_out_time": "2026-02-06T16:00:51.602332",
-      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-06_checkin_122306.jpg",
-      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-06_checkout_160051.jpg"
-    }
-  },
   "2026-02-09": {
     "Suxrob": {
       "worker_id": "Suxrob",
       "date": "2026-02-09",
-      "check_in_time": "2026-02-09T17:21:34.299821",
-      "check_out_time": "2026-02-09T17:52:52.082162",
-      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkin_172134.jpg",
-      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkout_175252.jpg"
+      "check_in_time": "2026-02-09T18:07:03.965596",
+      "check_out_time": "2026-02-09T18:11:07.081932",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkin_180703.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-09_checkout_181107.jpg"
     },
     "Murod": {
       "worker_id": "Murod",
       "date": "2026-02-09",
-      "check_in_time": "2026-02-09T17:24:32.278641",
-      "check_out_time": "2026-02-09T17:55:10.615410",
-      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-09_checkin_172432.jpg",
-      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-09_checkout_175510.jpg"
+      "check_in_time": "2026-02-09T18:07:15.217742",
+      "check_out_time": "2026-02-09T18:10:49.674477",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-09_checkin_180715.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-09_checkout_181049.jpg"
+    }
+  },
+  "2026-02-10": {
+    "Suxrob": {
+      "worker_id": "Suxrob",
+      "date": "2026-02-10",
+      "check_in_time": "2026-02-10T12:25:47.045604",
+      "check_out_time": "2026-02-10T22:21:10.831032",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-10_checkin_122547.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-10_checkout_222110.jpg"
+    },
+    "Murod": {
+      "worker_id": "Murod",
+      "date": "2026-02-10",
+      "check_in_time": "2026-02-10T12:25:48.683846",
+      "check_out_time": "2026-02-10T15:25:02.381298",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-10_checkin_122548.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-10_checkout_152502.jpg"
+    }
+  },
+  "2026-02-11": {
+    "Suxrob": {
+      "worker_id": "Suxrob",
+      "date": "2026-02-11",
+      "check_in_time": "2026-02-11T09:30:15.766941",
+      "check_out_time": "2026-02-11T09:38:27.658926",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-11_checkin_093015.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-11_checkout_093827.jpg"
     }
   }
 }
