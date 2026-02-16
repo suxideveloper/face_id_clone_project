@@ -1,3 +1,4 @@
+from logging import debug
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,5 +92,6 @@ if __name__ == "__main__":
             host="0.0.0.0",
             port=8080,
             reload=True,
-            log_level="warning",
+            debug=True,
+            log_level="debug",
         )
