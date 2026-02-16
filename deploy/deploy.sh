@@ -8,8 +8,13 @@
 
 set -e  # Exit on any error
 
-APP_DIR="/home/suxrob/Documents/face_id"
+# Auto-detect project directory from script location
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$(dirname "$SCRIPT_DIR")"
 VENV_DIR="${APP_DIR}/venv"
+
+echo "  Project path: ${APP_DIR}"
+echo "  Running as:   $(whoami)"
 
 echo "=========================================="
 echo "  Face ID — Deployment Script"
