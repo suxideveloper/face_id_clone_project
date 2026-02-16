@@ -1,7 +1,9 @@
 fastapi
 uvicorn[standard]
+gunicorn
 jinja2
 python-multipart
+python-dotenv
 opencv-python
 ultralytics
 face_recognition

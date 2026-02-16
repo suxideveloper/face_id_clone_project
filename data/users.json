@@ -12,5 +12,47 @@
     "department": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
     "position": "Bosh mutaxassis",
     "registered": true
+  },
+  "Hojiakbar": {
+    "full_name": "Hojiakbar Abdulhakimov",
+    "phone": "+998886246440",
+    "department": "Dasturiy mahsulotlarni ishlab chiqsh bo'limi",
+    "position": "Bosh mutaxassis",
+    "registered": true
+  },
+  "Sarvarbek": {
+    "full_name": "Sarvarbek Shoqayumov",
+    "phone": "+998977700656",
+    "department": "Dasturiy mahsulotlarni joriy etish bo'limi",
+    "position": "Bosh mutaxassis",
+    "registered": true
+  },
+  "Islom": {
+    "full_name": "Islom Mamadiyev",
+    "phone": "+998993077516",
+    "department": "Dasturiy mahsulotlarni ishlab chiqsh bo'limi",
+    "position": "Yetakchi mutaxasis",
+    "registered": true
+  },
+  "Maftuna": {
+    "full_name": "maftunabonu toxirova",
+    "phone": "+998993077516",
+    "department": "AKT startuplarni qo'llab quvvatlash bo'limi",
+    "position": "Bo'lim boshlig'i",
+    "registered": true
+  },
+  "Abdullo": {
+    "full_name": "Abdullo Abdusattorov",
+    "phone": "+998993077516",
+    "department": "Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi",
+    "position": "Engineer",
+    "registered": true
+  },
+  "Dmitriy": {
+    "full_name": "Dmitriy Bazarov",
+    "phone": "+998993077516",
+    "department": "Intelektual dastury tizimlar qo'shma labaratoriyasi",
+    "position": "Kichik ilmiy xodim",
+    "registered": true
   }
 }

@@ -8,3 +8,14 @@ data/images/
 clone/
 clone.zip
 data/attendance_snapshots/
+
+# Logs
+*.log
+debug.log
+
+# SSL certs (generated on server)
+deploy/ssl/
+
+# IDE
+.vscode/
+.idea/
