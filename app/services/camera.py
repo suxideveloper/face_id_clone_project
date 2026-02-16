@@ -1,6 +1,7 @@
 import cv2
 import threading
 import time
+import os
 import numpy as np
 from app.core.config import settings
 
@@ -13,6 +14,17 @@ class CameraService:
         
         # Do not connect immediately to avoid lock contention during uvicorn reload
         # self.connect_camera()
+
+    def _device_exists(self, src):
+        """Check if a camera device exists before trying to open it (prevents SEGV on headless servers)."""
+        if isinstance(src, int):
+            # Check if /dev/videoN exists
+            device_path = f"/dev/video{src}"
+            if not os.path.exists(device_path):
+                print(f"Camera device {device_path} does not exist. Skipping.")
+                return False
+        # For RTSP URLs or other strings, we can't pre-check — just try to open
+        return True
 
     def connect_camera(self):
         """Attempts to connect to the configured camera source, falling back to other indices if needed."""
@@ -28,25 +40,33 @@ class CameraService:
             sources_to_try = sorted(list(set(sources_to_try)))
 
         for src in sources_to_try:
+            # Skip if device doesn't exist (prevents SEGV crash)
+            if not self._device_exists(src):
+                continue
+
             print(f"Attempting to open camera source: {src}")
-            cap = cv2.VideoCapture(src)
-            if cap.isOpened():
-                # Try to set HD resolution
-                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-                
-                # Read a frame to be sure
-                ret, frame = cap.read()
-                if ret:
-                    self.cap = cap
-                    self.source = src
-                    print(f"Successfully opened camera source: {src}")
-                    return
+            try:
+                cap = cv2.VideoCapture(src)
+                if cap.isOpened():
+                    # Try to set HD resolution
+                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                    
+                    # Read a frame to be sure
+                    ret, frame = cap.read()
+                    if ret:
+                        self.cap = cap
+                        self.source = src
+                        print(f"Successfully opened camera source: {src}")
+                        return
+                    else:
+                        print(f"Opened source {src} but failed to read frame.")
+                        cap.release()
                 else:
-                    print(f"Opened source {src} but failed to read frame.")
+                    print(f"Failed to open camera source: {src}")
                     cap.release()
-            else:
-                print(f"Failed to open camera source: {src}")
+            except Exception as e:
+                print(f"Error opening camera source {src}: {e}")
         
         print("Could not open any camera source. Using dummy frame.")
         self.cap = None
@@ -64,8 +84,6 @@ class CameraService:
                 self.connect_camera()
                 
             if self.cap is None or not self.cap.isOpened():
-                # Try to reconnect every few seconds? 
-                # For now just return dummy
                 return self.get_dummy_frame()
                 
             ret, frame = self.cap.read()
