@@ -1,0 +1,14 @@
+[Unit]
+Description=Gunicorn instance to serve Face ID App
+After=network.target
+
+[Service]
+User=suhrob
+Group=www-data
+WorkingDirectory=/home/suhrob/faceid/face_id_clone_project
+Environment="PATH=/home/suhrob/faceid/face_id_clone_project/venv/bin"
+Environment="PYTHONUNBUFFERED=1"
+ExecStart=/home/suhrob/faceid/face_id_clone_project/venv/bin/python main.py
+
+[Install]
+WantedBy=multi-user.target
