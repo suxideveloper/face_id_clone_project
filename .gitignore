@@ -26,3 +26,4 @@ deploy/ssl/
 # IDE
 .vscode/
 .idea/
+data/attendance.json
