@@ -33,6 +33,7 @@ async def lifespan(app: FastAPI):
     # Startup
     os.makedirs(settings.IMAGES_DIR, exist_ok=True)
     print(f"Server started [{settings.ENV}]. Data directory: {settings.DATA_DIR}")
+    print(f"Allowed Hosts: {settings.ALLOWED_HOSTS}")
     
     # Start attendance processor background task
     from app.api.routes import start_attendance_processor
