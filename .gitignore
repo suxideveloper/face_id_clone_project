@@ -1,4 +1,12 @@
+# Faqat shu papkalardagi rasmlar yuklanmasin (Chunki bular juda ko'p bo'ladi)
+data/attendance_snapshots/
+data/debug_frames/
+
+# Tizim fayllari
+__pycache__/
 venv/
+.env
+.DS_Storevenv/
 __pycache__/
 *.pyc
 .DS_Store
