@@ -3,6 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.responses import Response
 from contextlib import asynccontextmanager
 from app.core.config import settings
@@ -61,6 +62,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_middleware(
+    TrustedHostMiddleware, 
+    allowed_hosts=settings.ALLOWED_HOSTS
+)
+
 # Mount static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/images", StaticFiles(directory="data/images"), name="images")
@@ -84,6 +90,8 @@ if __name__ == "__main__":
             workers=1,         # Single worker — camera is shared resource
             log_level="warning",
             access_log=False,
+            proxy_headers=True,  # Trust X-Forwarded-* headers from Nginx
+            forwarded_allow_ips="*",  # Trust all proxies (since Nginx is on localhost)
         )
     else:
         # Development: bind to all interfaces, enable hot reload
