@@ -118,17 +118,17 @@
       "worker_id": "Murod",
       "date": "2026-02-17",
       "check_in_time": "2026-02-17T10:48:43.430374",
-      "check_out_time": "2026-02-17T11:00:49.887928",
+      "check_out_time": "2026-02-17T14:18:42.125208",
       "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-17_checkin_104843.jpg",
-      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-17_checkout_110049.jpg"
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-17_checkout_141842.jpg"
     },
     "Suxrob": {
       "worker_id": "Suxrob",
       "date": "2026-02-17",
       "check_in_time": "2026-02-17T10:48:43.442506",
-      "check_out_time": "2026-02-17T11:01:03.136970",
+      "check_out_time": "2026-02-17T14:18:42.121777",
       "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-17_checkin_104843.jpg",
-      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-17_checkout_110103.jpg"
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-17_checkout_141842.jpg"
     },
     "Islom": {
       "worker_id": "Islom",

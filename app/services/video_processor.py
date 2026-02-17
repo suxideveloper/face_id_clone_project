@@ -54,11 +54,13 @@ class VideoProcessor:
 
         # Detect faces
         try:
+            print("LOG: Starting Face Detection (YOLO)...")
             detections = detector.detect(frame)
+            print(f"LOG: Finished Face Detection. Found {len(detections)} faces.")
             if len(detections) > 0:
                 print(f"DEBUG: Frame {w}x{h}, Faces Detected: {len(detections)}")
         except Exception as e:
-            print(f"ERROR: Face detection failed: {e}")
+            print(f"ERROR: Face detection failed (YOLO): {e}")
             return {"faces": [], "error": str(e)}
 
         bbox_list = [det[0] for det in detections]
@@ -74,7 +76,7 @@ class VideoProcessor:
             # Recognition: if name not cached OR needs re-verification
             if name is None or needs_reverify:
                 try:
-                    print(f"DEBUG: Verifying face ID {tid}...")
+                    print(f"LOG: Starting Recognition for ID {tid} (Dlib)...")
                     name = recognizer.verify(frame, (x1, y1, x2, y2))
                     self.tracker.set_name(tid, name)
                     print(f"DEBUG: Recognized face ID {tid} as: {name}")
