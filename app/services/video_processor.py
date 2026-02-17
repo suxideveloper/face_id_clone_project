@@ -43,6 +43,15 @@ class VideoProcessor:
             return {"faces": [], "error": "Invalid frame"}
 
         h, w = frame.shape[:2]
+        # DEBUG: Save first frame of each session to verify quality
+        import os
+        debug_dir = "data/debug_frames"
+        os.makedirs(debug_dir, exist_ok=True)
+        debug_path = os.path.join(debug_dir, f"session_{self.session_id}.jpg")
+        if not os.path.exists(debug_path):
+            cv2.imwrite(debug_path, frame)
+            print(f"DEBUG: Saved debug frame to {debug_path}")
+
         # Detect faces
         try:
             detections = detector.detect(frame)
