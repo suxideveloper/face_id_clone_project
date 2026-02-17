@@ -128,30 +128,23 @@ class FaceRecognizer:
         Verify face in frame using voting system.
         Checks against ALL encodings per user and uses best match.
         """
-        # Robust image format normalization for dlib 19.24
-        # Ensure 3-channel uint8
         if frame is None:
             return "Unknown"
 
-        # Convert to proper format
+        # Convert to proper BGR format first
         if len(frame.shape) == 2:
-            # Grayscale
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         elif frame.shape[2] == 4:
-            # RGBA -> BGR
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
         
-        # Ensure uint8
         if frame.dtype != np.uint8:
             frame = frame.astype(np.uint8)
 
-        # Convert BGR -> RGB for face_recognition
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
-        # CRITICAL: dlib 19.24 requires contiguous C-order arrays
-        rgb_frame = np.ascontiguousarray(rgb_frame)
-
-        print(f"DEBUG verify: shape={rgb_frame.shape}, dtype={rgb_frame.dtype}, contiguous={rgb_frame.flags['C_CONTIGUOUS']}")
+        # USE PIL to create a clean RGB numpy array
+        # This bypasses dlib 19.24 pybind11 2.2.4 numpy buffer issue
+        from PIL import Image
+        pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        rgb_frame = np.array(pil_img)
 
         if face_location:
             x1, y1, x2, y2 = face_location
