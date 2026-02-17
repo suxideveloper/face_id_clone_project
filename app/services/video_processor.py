@@ -42,6 +42,18 @@ class VideoProcessor:
         if frame is None:
             return {"faces": [], "error": "Invalid frame"}
 
+        # Ensure frame is 3-channel BGR uint8 (browser may send RGBA)
+        if len(frame.shape) == 2:
+            # Grayscale -> BGR
+            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+        elif frame.shape[2] == 4:
+            # RGBA -> BGR
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+
+        # Ensure uint8
+        if frame.dtype != np.uint8:
+            frame = frame.astype(np.uint8)
+
         h, w = frame.shape[:2]
         # DEBUG: Save first frame of each session to verify quality
         import os
