@@ -24,6 +24,7 @@ WorkingDirectory=/home/suhrob/faceid/face_id_clone_project
 Environment="PATH=/home/suhrob/faceid/face_id_clone_project/venv/bin"
 Environment="PYTHONUNBUFFERED=1"
 Environment="CAMERA_MODE=ip_camera"
+Environment="OPENBLAS_CORETYPE=NEHALEM"
 # Ensure no lingering processes
 ExecStartPre=/usr/bin/pkill -f gunicorn || true
 # Run directly with python (Uvicorn handles workers internally if configured, or single process)
