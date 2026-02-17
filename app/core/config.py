@@ -31,15 +31,17 @@ class Settings:
     IMAGES_DIR = os.path.join(DATA_DIR, "images")
     
     # Camera settings
-    # Use 0 for webcam, or RTSP URL for IP camera
-    # If CAMERA_ID is a digit string, convert to int, otherwise keep as string
+    # CAMERA_MODE: "client" = browser getUserMedia, "server" = OpenCV webcam
+    CAMERA_MODE: str = os.getenv("CAMERA_MODE", "client")
+    
+    # Server-side camera (only used when CAMERA_MODE=server)
     _camera_id_env = os.getenv("CAMERA_ID", "0")
     CAMERA_ID = int(_camera_id_env) if _camera_id_env.isdigit() else _camera_id_env
     
     # Model settings
     YOLO_MODEL = os.getenv("YOLO_MODEL", "yolov8n-face.pt")
 
-    # RTSP Settings — moved from hardcoded to .env
+    # RTSP Settings (legacy — only used when CAMERA_MODE=server)
     RTSP_URL: str = os.getenv("RTSP_URL", "")
 
 settings = Settings()

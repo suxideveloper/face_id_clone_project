@@ -40,7 +40,8 @@
         <!-- Left: Video Feed -->
         <div class="video-section">
             <div class="video-card">
-                <img src="/video_feed" alt="Live Verification Feed" class="live-feed">
+                <video id="localVideo" class="live-feed" autoplay muted playsinline></video>
+                <canvas id="overlayCanvas" class="overlay-canvas"></canvas>
             </div>
 
             <div class="system-status-bar">
@@ -303,12 +304,24 @@
         border-radius: 24px;
         overflow: hidden;
         box-shadow: var(--shadow-xl);
+        position: relative;
     }
 
     .live-feed {
         width: 100%;
         height: 100%;
         object-fit: cover;
+        transform: scaleX(-1);
+    }
+
+    .overlay-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        transform: scaleX(-1);
     }
 
     .system-status-bar {
@@ -647,9 +660,16 @@
 {% block scripts %}
 <script>
     let ws;
+    let wsVideo;
     let timer = null;
     let unknownTimer = null;
     let resetUnknownTimer = null;
+
+    const localVideo = document.getElementById('localVideo');
+    const overlayCanvas = document.getElementById('overlayCanvas');
+    const overlayCtx = overlayCanvas.getContext('2d');
+    const captureCanvas = document.createElement('canvas');
+    const captureCtx = captureCanvas.getContext('2d');
 
     const waitingState = document.getElementById('waitingState');
     const verifiedState = document.getElementById('verifiedState');
@@ -664,18 +684,117 @@
     const connectionDot = document.getElementById('connectionDot');
     const connectionStatus = document.getElementById('connectionStatus');
 
+    let videoReady = false;
+    let sendingFrame = false;
+
+    // ========== BROWSER CAMERA ==========
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            localVideo.srcObject = stream;
+            localVideo.onloadedmetadata = () => {
+                captureCanvas.width = localVideo.videoWidth;
+                captureCanvas.height = localVideo.videoHeight;
+                videoReady = true;
+                connectVideoWS();
+            };
+        } catch (err) {
+            console.error('Camera error:', err);
+            connectionDot.classList.add('offline');
+            connectionStatus.textContent = 'Camera Access Denied';
+        }
+    }
+
+    // ========== VIDEO WEBSOCKET (frame sending) ==========
+    function connectVideoWS() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        wsVideo = new WebSocket(`${protocol}//${window.location.host}/ws/video`);
+
+        wsVideo.onopen = () => {
+            connectionDot.classList.remove('offline');
+            connectionStatus.textContent = 'System Online';
+            startFrameLoop();
+        };
+
+        wsVideo.onclose = () => {
+            connectionDot.classList.add('offline');
+            connectionStatus.textContent = 'Reconnecting...';
+            setTimeout(connectVideoWS, 3000);
+        };
+
+        wsVideo.onmessage = (event) => {
+            try {
+                const result = JSON.parse(event.data);
+                drawOverlay(result);
+            } catch (e) { }
+            sendingFrame = false;
+        };
+    }
+
+    function startFrameLoop() {
+        const FPS = 5;
+        setInterval(() => {
+            if (!videoReady || !wsVideo || wsVideo.readyState !== WebSocket.OPEN || sendingFrame) return;
+
+            captureCtx.drawImage(localVideo, 0, 0);
+            captureCanvas.toBlob((blob) => {
+                if (blob && wsVideo.readyState === WebSocket.OPEN) {
+                    sendingFrame = true;
+                    wsVideo.send(blob);
+                }
+            }, 'image/jpeg', 0.7);
+        }, 1000 / FPS);
+    }
+
+    // ========== OVERLAY DRAWING ==========
+    function drawOverlay(result) {
+        // Match canvas resolution to video
+        overlayCanvas.width = captureCanvas.width;
+        overlayCanvas.height = captureCanvas.height;
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+
+        if (!result.faces || result.faces.length === 0) return;
+
+        for (const face of result.faces) {
+            const [x1, y1, x2, y2] = face.bbox;
+            const color = face.color === 'green' ? '#22c55e' : '#ef4444';
+
+            // Corner-style bounding box (same style as OpenCV version)
+            const l = 20, t = 3;
+            overlayCtx.strokeStyle = color;
+            overlayCtx.lineWidth = t;
+
+            // Top-left
+            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y1+l); overlayCtx.lineTo(x1, y1); overlayCtx.lineTo(x1+l, y1); overlayCtx.stroke();
+            // Top-right
+            overlayCtx.beginPath(); overlayCtx.moveTo(x2-l, y1); overlayCtx.lineTo(x2, y1); overlayCtx.lineTo(x2, y1+l); overlayCtx.stroke();
+            // Bottom-left
+            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y2-l); overlayCtx.lineTo(x1, y2); overlayCtx.lineTo(x1+l, y2); overlayCtx.stroke();
+            // Bottom-right
+            overlayCtx.beginPath(); overlayCtx.moveTo(x2-l, y2); overlayCtx.lineTo(x2, y2); overlayCtx.lineTo(x2, y2-l); overlayCtx.stroke();
+
+            // Label background + text
+            const label = face.label || face.name;
+            overlayCtx.font = 'bold 16px Inter, sans-serif';
+            const tw = overlayCtx.measureText(label).width;
+            overlayCtx.fillStyle = color;
+            overlayCtx.fillRect(x1, y1 - 28, tw + 12, 26);
+            overlayCtx.fillStyle = face.color === 'green' ? '#000' : '#fff';
+            overlayCtx.fillText(label, x1 + 6, y1 - 8);
+        }
+    }
+
+    // ========== ATTENDANCE WEBSOCKET (notifications — unchanged) ==========
     function connectWS() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-        ws.onopen = () => {
-            connectionDot.classList.remove('offline');
-            connectionStatus.textContent = 'System Online';
-        };
+        ws.onopen = () => {};
 
         ws.onclose = () => {
-            connectionDot.classList.add('offline');
-            connectionStatus.textContent = 'Offline - Reconnecting...';
             setTimeout(connectWS, 3000);
         };
 
@@ -743,19 +862,15 @@
                     verifiedState.classList.add('hidden');
                     unregisteredState.classList.remove('hidden');
 
-                    // Play error sound? (Optional, verify sound used for success)
-                    // You might want a different sound for error.
-                    // For now, let's keep it silent or reuse logic if requested.
-
                     // Reset back to waiting after 3 seconds
                     resetUnknownTimer = setTimeout(() => {
                         unregisteredState.classList.add('hidden');
                         waitingState.classList.remove('hidden');
-                        unknownTimer = null; // Reset main timer allow triggering again
+                        unknownTimer = null;
                         resetUnknownTimer = null;
                     }, 3000);
 
-                }, 6000); // 6 seconds wait
+                }, 6000);
             }
             return;
         }
@@ -790,6 +905,8 @@
         }, 4000);
     }
 
+    // Initialize
+    startCamera();
     connectWS();
 </script>
 {% endblock %}

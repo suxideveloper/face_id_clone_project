@@ -16,6 +16,9 @@ from app.services.tracker import Tracker
 from app.services.user_db import user_db
 from app.services.attendance_db import attendance_db
 from app.services.websocket_manager import ws_manager
+from app.services.video_processor import get_or_create_processor, remove_processor
+import base64
+import uuid
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -988,6 +991,145 @@ async def delete_user(request: Request, name: str):
         shutil.rmtree(user_dir)
     
     return JSONResponse(content={"message": f"User {name} deleted successfully."})
+
+
+# ========== BROWSER CAMERA ENDPOINTS ==========
+
+@router.websocket("/ws/video")
+async def websocket_video(websocket: WebSocket):
+    """WebSocket endpoint for receiving browser camera frames and returning recognition results."""
+    await websocket.accept()
+    session_id = str(uuid.uuid4())
+    processor = get_or_create_processor(session_id)
+    print(f"Video WebSocket connected: {session_id}")
+    
+    try:
+        while True:
+            # Receive binary JPEG frame from browser
+            data = await websocket.receive()
+            
+            if "bytes" in data:
+                frame_bytes = data["bytes"]
+            elif "text" in data:
+                # Handle JSON messages (e.g., mode switch)
+                import json
+                msg = json.loads(data["text"])
+                if msg.get("type") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                    continue
+                continue
+            else:
+                continue
+            
+            # Decode and process frame
+            frame = processor.decode_frame(frame_bytes)
+            if frame is None:
+                continue
+            
+            # Process for verification (face detection + recognition + attendance)
+            result = processor.process_verification_frame(frame, attendance_queue)
+            
+            # Send results back to browser
+            await websocket.send_json(result)
+            
+    except WebSocketDisconnect:
+        print(f"Video WebSocket disconnected: {session_id}")
+        remove_processor(session_id)
+    except Exception as e:
+        print(f"Video WebSocket error: {e}")
+        remove_processor(session_id)
+
+
+@router.post("/api/capture-faces-browser")
+async def capture_faces_browser(request: Request):
+    """Capture face images from browser camera for registration.
+    
+    Accepts JSON with:
+    - name: username
+    - images: list of base64 encoded JPEG images (5 poses)
+    """
+    import json
+    body = await request.json()
+    name = body.get("name", "").strip()
+    images_b64 = body.get("images", [])
+    
+    if not name:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "message": "Username is required."
+        })
+    
+    if len(images_b64) < 5:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "message": f"Need 5 images, got {len(images_b64)}."
+        })
+    
+    # Decode base64 images to OpenCV frames
+    images = []
+    for i, img_b64 in enumerate(images_b64[:5]):
+        try:
+            # Remove data URL prefix if present
+            if "," in img_b64:
+                img_b64 = img_b64.split(",")[1]
+            img_bytes = base64.b64decode(img_b64)
+            nparr = np.frombuffer(img_bytes, np.uint8)
+            frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if frame is not None:
+                # Validate face is present
+                detections = detector.detect(frame)
+                if detections:
+                    images.append(frame)
+                else:
+                    print(f"No face detected in image {i} for {name}")
+            else:
+                print(f"Failed to decode image {i} for {name}")
+        except Exception as e:
+            print(f"Error processing image {i} for {name}: {e}")
+    
+    if len(images) < 3:
+        return JSONResponse(status_code=400, content={
+            "success": False,
+            "message": f"Only {len(images)} valid face images detected. Need at least 3. Please try again."
+        })
+    
+    # Store captured images temporarily (same as existing capture_faces)
+    captured_faces_temp[name] = images
+    
+    return JSONResponse(content={
+        "success": True,
+        "message": f"{len(images)} face images captured successfully!",
+        "poses_captured": len(images)
+    })
+
+
+@router.post("/api/detect-face-browser")
+async def detect_face_browser(request: Request):
+    """Detect face in a single frame from browser camera.
+    Used during registration for real-time face position feedback.
+    """
+    body = await request.json()
+    img_b64 = body.get("image", "")
+    
+    if not img_b64:
+        return JSONResponse(content={"face_detected": False})
+    
+    try:
+        if "," in img_b64:
+            img_b64 = img_b64.split(",")[1]
+        img_bytes = base64.b64decode(img_b64)
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        
+        if frame is None:
+            return JSONResponse(content={"face_detected": False})
+        
+        # Use a temp processor for detection
+        temp_processor = get_or_create_processor("registration-detect")
+        result = temp_processor.process_registration_frame(frame)
+        return JSONResponse(content=result)
+    except Exception as e:
+        return JSONResponse(content={"face_detected": False, "error": str(e)})
 
 
 # ========== WEBSOCKET ENDPOINT ==========

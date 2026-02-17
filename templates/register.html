@@ -35,7 +35,9 @@
         </div>
         <div class="card-body">
             <div class="video-wrapper">
-                <img src="/video_feed?mode=registration" alt="Video Feed" id="videoFeed">
+                <video id="regVideo" autoplay muted playsinline
+                    style="width:100%; height:100%; object-fit:cover; transform:scaleX(-1);"></video>
+                <canvas id="regOverlay" class="reg-overlay-canvas"></canvas>
                 <div class="pose-progress" id="poseProgress">
                     <div class="pose-step" data-step="1">①</div>
                     <div class="pose-step" data-step="2">②</div>
@@ -190,10 +192,21 @@
         aspect-ratio: 4/3;
     }
 
-    .video-wrapper img {
+    .video-wrapper img,
+    .video-wrapper video {
         width: 100%;
         height: 100%;
         object-fit: cover;
+    }
+
+    .reg-overlay-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        transform: scaleX(-1);
     }
 
     .pose-progress {
@@ -278,7 +291,94 @@
 
 <script>
     let capturedUsername = null;
-    let pollInterval = null;
+    const regVideo = document.getElementById('regVideo');
+    const regOverlay = document.getElementById('regOverlay');
+    const regOverlayCtx = regOverlay.getContext('2d');
+    const regCaptureCanvas = document.createElement('canvas');
+    const regCaptureCtx = regCaptureCanvas.getContext('2d');
+    let cameraReady = false;
+    let overlayInterval = null;
+
+    // ========== BROWSER CAMERA ==========
+    async function startRegCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+                audio: false
+            });
+            regVideo.srcObject = stream;
+            regVideo.onloadedmetadata = () => {
+                regCaptureCanvas.width = regVideo.videoWidth;
+                regCaptureCanvas.height = regVideo.videoHeight;
+                cameraReady = true;
+                startOverlayLoop();
+            };
+        } catch (err) {
+            console.error('Camera error:', err);
+            document.getElementById('poseInstructions').textContent = '❌ Camera access denied. Please allow camera.';
+        }
+    }
+
+    // ========== FACE DETECTION OVERLAY ==========
+    function startOverlayLoop() {
+        overlayInterval = setInterval(async () => {
+            if (!cameraReady) return;
+
+            regCaptureCtx.drawImage(regVideo, 0, 0);
+            const blob = await new Promise(r => regCaptureCanvas.toBlob(r, 'image/jpeg', 0.6));
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+                try {
+                    const resp = await fetch('/api/detect-face-browser', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ image: reader.result })
+                    });
+                    const data = await resp.json();
+                    drawRegOverlay(data);
+                } catch (e) { }
+            };
+            reader.readAsDataURL(blob);
+        }, 500); // 2 FPS for detection overlay
+    }
+
+    function drawRegOverlay(data) {
+        regOverlay.width = regCaptureCanvas.width;
+        regOverlay.height = regCaptureCanvas.height;
+        regOverlayCtx.clearRect(0, 0, regOverlay.width, regOverlay.height);
+
+        if (!data.zone) return;
+
+        const [bx1, by1, bx2, by2] = data.zone;
+        const color = data.face_in_zone ? '#22c55e' : (data.face_detected ? '#f59e0b' : '#a855f7');
+
+        // Draw corner brackets (magenta/green)
+        const l = 40, t = 3;
+        regOverlayCtx.strokeStyle = color;
+        regOverlayCtx.lineWidth = t;
+
+        // Top-left
+        regOverlayCtx.beginPath(); regOverlayCtx.moveTo(bx1, by1 + l); regOverlayCtx.lineTo(bx1, by1); regOverlayCtx.lineTo(bx1 + l, by1); regOverlayCtx.stroke();
+        // Top-right
+        regOverlayCtx.beginPath(); regOverlayCtx.moveTo(bx2 - l, by1); regOverlayCtx.lineTo(bx2, by1); regOverlayCtx.lineTo(bx2, by1 + l); regOverlayCtx.stroke();
+        // Bottom-left
+        regOverlayCtx.beginPath(); regOverlayCtx.moveTo(bx1, by2 - l); regOverlayCtx.lineTo(bx1, by2); regOverlayCtx.lineTo(bx1 + l, by2); regOverlayCtx.stroke();
+        // Bottom-right
+        regOverlayCtx.beginPath(); regOverlayCtx.moveTo(bx2 - l, by2); regOverlayCtx.lineTo(bx2, by2); regOverlayCtx.lineTo(bx2, by2 - l); regOverlayCtx.stroke();
+
+        // Face bbox
+        if (data.face_bbox) {
+            const [x1, y1, x2, y2] = data.face_bbox;
+            const faceColor = data.face_in_zone ? '#22c55e' : '#ef4444';
+            regOverlayCtx.strokeStyle = faceColor;
+            regOverlayCtx.lineWidth = 2;
+            const fl = 15;
+            regOverlayCtx.beginPath(); regOverlayCtx.moveTo(x1, y1 + fl); regOverlayCtx.lineTo(x1, y1); regOverlayCtx.lineTo(x1 + fl, y1); regOverlayCtx.stroke();
+            regOverlayCtx.beginPath(); regOverlayCtx.moveTo(x2 - fl, y1); regOverlayCtx.lineTo(x2, y1); regOverlayCtx.lineTo(x2, y1 + fl); regOverlayCtx.stroke();
+            regOverlayCtx.beginPath(); regOverlayCtx.moveTo(x1, y2 - fl); regOverlayCtx.lineTo(x1, y2); regOverlayCtx.lineTo(x1 + fl, y2); regOverlayCtx.stroke();
+            regOverlayCtx.beginPath(); regOverlayCtx.moveTo(x2 - fl, y2); regOverlayCtx.lineTo(x2, y2); regOverlayCtx.lineTo(x2, y2 - fl); regOverlayCtx.stroke();
+        }
+    }
 
     function updatePoseProgress(stage) {
         const steps = document.querySelectorAll('.pose-step');
@@ -312,16 +412,7 @@
         }
     }
 
-    async function pollRegistrationState() {
-        try {
-            const response = await fetch('/api/registration-state');
-            const data = await response.json();
-            if (data.stage >= 0) {
-                updatePoseProgress(data.stage);
-            }
-        } catch (e) { }
-    }
-
+    // ========== CAPTURE 5 POSES FROM BROWSER CAMERA ==========
     async function startCapture() {
         const usernameInput = document.getElementById('captureUsername');
         const username = usernameInput.value.trim();
@@ -329,6 +420,11 @@
         if (!username) {
             alert('Please enter a username first!');
             usernameInput.focus();
+            return;
+        }
+
+        if (!cameraReady) {
+            alert('Camera not ready. Please allow camera access.');
             return;
         }
 
@@ -340,25 +436,51 @@
         btn.textContent = '📸 Capturing...';
         usernameInput.disabled = true;
 
-        statusDiv.textContent = "📸 Starting capture... Follow the pose instructions!";
+        statusDiv.textContent = "📸 Follow the pose instructions!";
         statusDiv.className = "status-message loading";
         statusDiv.style.display = "block";
 
         document.querySelectorAll('.pose-step').forEach(s => s.classList.remove('active', 'complete'));
 
-        pollInterval = setInterval(pollRegistrationState, 300);
+        // Stop overlay loop during capture
+        if (overlayInterval) clearInterval(overlayInterval);
 
+        const capturedImages = [];
+        const HOLD_TIME = 2000; // 2 seconds per pose
+        const DELAY_BETWEEN = 1500; // 1.5 second between poses
+
+        for (let pose = 0; pose < 5; pose++) {
+            updatePoseProgress(pose);
+
+            // Wait for user to hold pose
+            await new Promise(r => setTimeout(r, HOLD_TIME));
+
+            // Capture frame
+            regCaptureCtx.drawImage(regVideo, 0, 0);
+            const dataUrl = regCaptureCanvas.toDataURL('image/jpeg', 0.9);
+            capturedImages.push(dataUrl);
+
+            statusDiv.textContent = `📸 Pose ${pose + 1}/5 captured!`;
+
+            if (pose < 4) {
+                await new Promise(r => setTimeout(r, DELAY_BETWEEN));
+            }
+        }
+
+        updatePoseProgress(5);
+        statusDiv.textContent = "⏳ Processing captures...";
+
+        // Send all images to server
         try {
-            const formData = new FormData();
-            formData.append('name', username);
-
-            const response = await fetch('/api/capture-faces', {
+            const response = await fetch('/api/capture-faces-browser', {
                 method: 'POST',
-                body: formData
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: username,
+                    images: capturedImages
+                })
             });
             const result = await response.json();
-
-            clearInterval(pollInterval);
 
             if (result.success) {
                 capturedUsername = username;
@@ -381,18 +503,19 @@
                 btn.disabled = false;
                 btn.textContent = '📸 Start Capture';
                 usernameInput.disabled = false;
+                startOverlayLoop();
 
                 instructions.textContent = "Position your face in the frame and try again";
                 instructions.style.background = 'var(--bg-primary)';
                 instructions.style.color = 'var(--text-medium)';
             }
         } catch (err) {
-            clearInterval(pollInterval);
             statusDiv.textContent = "❌ Network Error: " + err;
             statusDiv.className = "status-message error";
             btn.disabled = false;
             btn.textContent = '📸 Start Capture';
             usernameInput.disabled = false;
+            startOverlayLoop();
         }
     }
 
@@ -449,5 +572,8 @@
             btn.textContent = 'Complete Registration';
         }
     });
+
+    // Initialize camera on page load
+    startRegCamera();
 </script>
 {% endblock %}
