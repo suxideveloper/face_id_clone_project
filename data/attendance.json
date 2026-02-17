@@ -112,5 +112,39 @@
       "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-16_checkin_100930.jpg",
       "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-16_checkout_150027.jpg"
     }
+  },
+  "2026-02-17": {
+    "Murod": {
+      "worker_id": "Murod",
+      "date": "2026-02-17",
+      "check_in_time": "2026-02-17T10:48:43.430374",
+      "check_out_time": "2026-02-17T11:00:49.887928",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-17_checkin_104843.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Murod_2026-02-17_checkout_110049.jpg"
+    },
+    "Suxrob": {
+      "worker_id": "Suxrob",
+      "date": "2026-02-17",
+      "check_in_time": "2026-02-17T10:48:43.442506",
+      "check_out_time": "2026-02-17T11:01:03.136970",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-17_checkin_104843.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Suxrob_2026-02-17_checkout_110103.jpg"
+    },
+    "Islom": {
+      "worker_id": "Islom",
+      "date": "2026-02-17",
+      "check_in_time": "2026-02-17T10:51:15.024185",
+      "check_out_time": "2026-02-17T11:00:48.256860",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Islom_2026-02-17_checkin_105115.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Islom_2026-02-17_checkout_110048.jpg"
+    },
+    "Abdullo": {
+      "worker_id": "Abdullo",
+      "date": "2026-02-17",
+      "check_in_time": "2026-02-17T10:56:13.244402",
+      "check_out_time": "2026-02-17T10:56:47.733367",
+      "check_in_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Abdullo_2026-02-17_checkin_105613.jpg",
+      "check_out_snapshot": "/home/suxrob/Documents/face_id/data/attendance_snapshots/Abdullo_2026-02-17_checkout_105647.jpg"
+    }
   }
 }

@@ -1021,13 +1021,13 @@ async def websocket_video(websocket: WebSocket):
             else:
                 continue
             
-            # Decode and process frame
-            frame = processor.decode_frame(frame_bytes)
+            # Decode frame (blocking -> run in thread)
+            frame = await asyncio.to_thread(processor.decode_frame, frame_bytes)
             if frame is None:
                 continue
             
-            # Process for verification (face detection + recognition + attendance)
-            result = processor.process_verification_frame(frame, attendance_queue)
+            # Process for verification (blocking -> run in thread)
+            result = await asyncio.to_thread(processor.process_verification_frame, frame, attendance_queue)
             
             # Send results back to browser
             await websocket.send_json(result)

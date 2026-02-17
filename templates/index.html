@@ -321,7 +321,7 @@
         width: 100%;
         height: 100%;
         pointer-events: none;
-        transform: scaleX(-1);
+        /* Canvas NOT mirrored, so text is readable. Bbox coords will be flipped in JS */
     }
 
     .system-status-bar {
@@ -759,8 +759,19 @@
         if (!result.faces || result.faces.length === 0) return;
 
         for (const face of result.faces) {
-            const [x1, y1, x2, y2] = face.bbox;
+            let [x1, y1, x2, y2] = face.bbox;
             const color = face.color === 'green' ? '#22c55e' : '#ef4444';
+
+            // FLIP COORDINATES horizontally because video is mirrored
+            // Original: x1 is left, x2 is right (in raw frame)
+            // Mirrored view: Raw Left is View Right.
+            // New x1 = width - old x2
+            // New x2 = width - old x1
+            const w = overlayCanvas.width;
+            const new_x1 = w - x2;
+            const new_x2 = w - x1;
+            x1 = new_x1;
+            x2 = new_x2;
 
             // Corner-style bounding box (same style as OpenCV version)
             const l = 20, t = 3;
@@ -768,13 +779,13 @@
             overlayCtx.lineWidth = t;
 
             // Top-left
-            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y1+l); overlayCtx.lineTo(x1, y1); overlayCtx.lineTo(x1+l, y1); overlayCtx.stroke();
+            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y1 + l); overlayCtx.lineTo(x1, y1); overlayCtx.lineTo(x1 + l, y1); overlayCtx.stroke();
             // Top-right
-            overlayCtx.beginPath(); overlayCtx.moveTo(x2-l, y1); overlayCtx.lineTo(x2, y1); overlayCtx.lineTo(x2, y1+l); overlayCtx.stroke();
+            overlayCtx.beginPath(); overlayCtx.moveTo(x2 - l, y1); overlayCtx.lineTo(x2, y1); overlayCtx.lineTo(x2, y1 + l); overlayCtx.stroke();
             // Bottom-left
-            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y2-l); overlayCtx.lineTo(x1, y2); overlayCtx.lineTo(x1+l, y2); overlayCtx.stroke();
+            overlayCtx.beginPath(); overlayCtx.moveTo(x1, y2 - l); overlayCtx.lineTo(x1, y2); overlayCtx.lineTo(x1 + l, y2); overlayCtx.stroke();
             // Bottom-right
-            overlayCtx.beginPath(); overlayCtx.moveTo(x2-l, y2); overlayCtx.lineTo(x2, y2); overlayCtx.lineTo(x2, y2-l); overlayCtx.stroke();
+            overlayCtx.beginPath(); overlayCtx.moveTo(x2 - l, y2); overlayCtx.lineTo(x2, y2); overlayCtx.lineTo(x2, y2 - l); overlayCtx.stroke();
 
             // Label background + text
             const label = face.label || face.name;
@@ -792,7 +803,7 @@
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
-        ws.onopen = () => {};
+        ws.onopen = () => { };
 
         ws.onclose = () => {
             setTimeout(connectWS, 3000);
