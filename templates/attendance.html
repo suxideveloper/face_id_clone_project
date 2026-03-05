@@ -151,6 +151,16 @@
         font-weight: 700;
         color: var(--text-dark);
     }
+
+    .user-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+
+    .user-link:hover {
+        text-decoration: underline;
+    }
 </style>
 
 <script>
@@ -233,7 +243,7 @@
 
             const formatTime = (isoStr) => {
                 if (!isoStr) return "-";
-                try { return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }); }
+                try { return new Date(isoStr).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
                 catch (e) { return isoStr; }
             };
 
@@ -243,16 +253,16 @@
 
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td style="font-weight: 500;">${record.date}</td>
+                <td style="font-weight: 500; white-space: nowrap;">${record.date}</td>
                 <td>
                     <div>
-                        <div style="font-weight: 600;">${record.full_name || record.worker_id}</div>
+                        <a href="/users/${record.worker_id}" class="user-link">${record.full_name || record.worker_id}</a>
                         ${record.full_name ? `<div style="font-size: 0.8rem; color: var(--text-light);">ID: ${record.worker_id}</div>` : ''}
                     </div>
                 </td>
                 <td><span class="badge ${record.department}">${record.department || 'General'}</span></td>
-                <td class="time-in">${formatTime(record.check_in_time)}</td>
-                <td class="time-out">${formatTime(record.check_out_time)}</td>
+                <td class="time-in" style="white-space: nowrap;">${formatTime(record.check_in_time)}</td>
+                <td class="time-out" style="white-space: nowrap;">${formatTime(record.check_out_time)}</td>
                 <td class="hours-worked">${record.working_hours || '-'}</td>
                 <td>
                     <div style="display: flex; gap: 8px;">
