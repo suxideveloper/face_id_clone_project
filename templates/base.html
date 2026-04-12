@@ -460,13 +460,19 @@
             border: 1px solid var(--border-color);
             border-radius: var(--radius-sm);
             font-size: 0.95rem;
-            background: var(--bg-white);
+            background: var(--bg-primary);
+            color: var(--text-dark);
+        }
+
+        .filters-bar input::placeholder {
+            color: var(--text-light);
         }
 
         .filters-bar input:focus,
         .filters-bar select:focus {
             outline: none;
             border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
         }
 
         /* ========== ACTION BUTTONS ========== */
@@ -786,7 +792,7 @@
                 <li><a href="/admin">Boshqaruv paneli</a></li>
                 <li><a href="/users">Xodimlar</a></li>
                 <li><a href="/attendance">Davomat</a></li>
-                <li><a href="/admin/settings">Sozlamalar</a></li>
+
                 <li><a href="/admin/audit">Audit</a></li>
                 <li>
                     <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark mode">

@@ -346,6 +346,27 @@
         height: 320px;
         position: relative;
     }
+
+    /* Dark mode overrides for stat badges */
+    html[data-theme="dark"] .stat-badge.blue {
+        background: rgba(59, 130, 246, 0.25);
+        color: #93c5fd;
+    }
+
+    html[data-theme="dark"] .stat-badge.green {
+        background: rgba(16, 185, 129, 0.25);
+        color: #6ee7b7;
+    }
+
+    html[data-theme="dark"] .stat-badge.purple {
+        background: rgba(124, 58, 237, 0.25);
+        color: #c4b5fd;
+    }
+
+    html[data-theme="dark"] .stat-badge.orange {
+        background: rgba(245, 158, 11, 0.25);
+        color: #fcd34d;
+    }
 </style>
 
 <script>
@@ -455,20 +476,20 @@
                     y: {
                         beginAtZero: true,
                         grid: {
-                            color: '#f1f5f9',
+                            color: document.documentElement.getAttribute('data-theme') === 'dark' ? 'rgba(148,163,184,0.15)' : '#f1f5f9',
                             borderDash: [2, 2],
                             drawBorder: false
                         },
                         ticks: {
                             font: { family: 'Inter', size: 11 },
-                            color: '#64748b'
+                            color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#cbd5e1' : '#64748b'
                         }
                     },
                     x: {
                         grid: { display: false },
                         ticks: {
                             font: { family: 'Inter', size: 12 },
-                            color: '#64748b'
+                            color: document.documentElement.getAttribute('data-theme') === 'dark' ? '#cbd5e1' : '#64748b'
                         }
                     }
                 },

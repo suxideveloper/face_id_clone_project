@@ -497,6 +497,144 @@ async def daily_report(request: Request):
         "work_end": work_end_dt.strftime("%H:%M"),
     })
 
+
+@router.get("/api/daily-report/export/excel")
+async def export_daily_report_excel(request: Request):
+    """Kunlik hisobotni Excel (.xlsx) fayl sifatida yuklab olish."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+    users = user_db.get_all_users()
+    today_records = attendance_db.get_all_today()
+    today_d = datetime.now().date()
+    today_iso = today_d.isoformat()
+    holiday_label = holidays_db.get_label(today_iso)
+
+    work_start_dt, work_end_dt = work_bounds_for_date(today_d)
+
+    present_users = []
+    absent_users = []
+
+    for name, user_data in users.items():
+        if name in today_records:
+            record = today_records[name]
+            check_in_str = record.get("check_in_time", "")
+            check_out_str = record.get("check_out_time", "")
+            check_in_dt = None
+            check_out_dt = None
+
+            if check_in_str:
+                try:
+                    check_in_dt = datetime.fromisoformat(check_in_str)
+                    check_in_str = check_in_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            if check_out_str:
+                try:
+                    check_out_dt = datetime.fromisoformat(check_out_str)
+                    check_out_str = check_out_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            st = classify_attendance_status(check_in_dt, check_out_dt, today_d)
+
+            present_users.append({
+                "username": name,
+                "full_name": user_data.get("full_name", name),
+                "department": user_data.get("department", "Unassigned"),
+                "check_in_time": check_in_str,
+                "check_out_time": check_out_str,
+                "status_label": st["label"],
+            })
+        else:
+            if not holiday_label:
+                absent_users.append({
+                    "username": name,
+                    "full_name": user_data.get("full_name", name),
+                    "department": user_data.get("department", "Unassigned"),
+                })
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Kunlik hisobot"
+
+    # Title row
+    ws.merge_cells("A1:F1")
+    title_cell = ws["A1"]
+    title_cell.value = f"Kunlik hisobot — {today_iso} (Grafik: {work_start_dt.strftime('%H:%M')} – {work_end_dt.strftime('%H:%M')})"
+    title_cell.font = Font(bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center")
+
+    # Present users section
+    row = 3
+    ws.cell(row=row, column=1, value="KELGANLAR").font = Font(bold=True, size=12, color="166534")
+    row += 1
+
+    header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Kelgan vaqti", "Holati"]
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col, value=h)
+        cell.font = Font(bold=True, size=10)
+        cell.fill = header_fill
+    row += 1
+
+    for i, p in enumerate(present_users, 1):
+        ws.cell(row=row, column=1, value=i)
+        ws.cell(row=row, column=2, value=p["username"])
+        ws.cell(row=row, column=3, value=p["full_name"])
+        ws.cell(row=row, column=4, value=p["department"])
+        ws.cell(row=row, column=5, value=p["check_in_time"])
+        ws.cell(row=row, column=6, value=p["status_label"])
+        row += 1
+
+    # Absent users section
+    row += 1
+    ws.cell(row=row, column=1, value="KELMAGANLAR").font = Font(bold=True, size=12, color="B91C1C")
+    row += 1
+
+    absent_headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Holati"]
+    for col, h in enumerate(absent_headers, 1):
+        cell = ws.cell(row=row, column=col, value=h)
+        cell.font = Font(bold=True, size=10)
+        cell.fill = header_fill
+    row += 1
+
+    for i, a in enumerate(absent_users, 1):
+        ws.cell(row=row, column=1, value=i)
+        ws.cell(row=row, column=2, value=a["username"])
+        ws.cell(row=row, column=3, value=a["full_name"])
+        ws.cell(row=row, column=4, value=a["department"])
+        ws.cell(row=row, column=5, value="Kelmagan")
+        row += 1
+
+    # Auto-width columns
+    for col in ws.columns:
+        max_length = 0
+        column_letter = None
+        for cell in col:
+            if hasattr(cell, 'column_letter'):
+                column_letter = cell.column_letter
+            if cell.value:
+                max_length = max(max_length, len(str(cell.value)))
+        if column_letter:
+            ws.column_dimensions[column_letter].width = min(max_length + 4, 40)
+
+    buf = BytesIO()
+    wb.save(buf)
+
+    filename = f"kunlik_hisobot_{today_iso}.xlsx"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.get("/admin")
 async def admin_dashboard(request: Request):
     user = get_current_admin(request)
@@ -1678,32 +1816,8 @@ async def get_worker_attendance(worker_id: str, limit: int = 30):
 # ========== SETTINGS, AUDIT, TELEGRAM ==========
 
 
-@router.get("/admin/settings")
-async def admin_settings_page(request: Request):
-    user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
-        return RedirectResponse(url="/login?next=/admin/settings", status_code=303)
-    sched = load_schedule()
-    hol = holidays_db.list_all()
-    tg_on = is_telegram_ready()
-    chat_hint = get_effective_chat_id()
-    return templates.TemplateResponse(
-        "admin_settings.html",
-        {
-            "request": request,
-            "user": user,
-            "schedule": sched,
-            "holidays": hol,
-            "telegram_configured": tg_on,
-            "telegram_chat_masked": (chat_hint[:3] + "…" + chat_hint[-2:]) if len(chat_hint) > 6 else (chat_hint or ""),
-            "telegram_hour": settings.TELEGRAM_DAILY_SUMMARY_HOUR,
-            "telegram_minute": settings.TELEGRAM_DAILY_SUMMARY_MINUTE,
-            "telegram_time_display": (
-                f"{settings.TELEGRAM_DAILY_SUMMARY_HOUR:02d}:"
-                f"{settings.TELEGRAM_DAILY_SUMMARY_MINUTE:02d}"
-            ),
-        },
-    )
+
+
 
 
 @router.get("/admin/audit")

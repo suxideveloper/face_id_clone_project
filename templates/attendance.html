@@ -39,8 +39,7 @@
     <input type="date" id="startDateFilter" title="Start Date">
     <span style="color: var(--text-light);">dan</span>
     <input type="date" id="endDateFilter" title="End Date">
-    <button type="button" id="filterThisWeek" class="btn btn-secondary" title="Joriy hafta (dushanba–yakshanba)">Bu hafta</button>
-    <button type="button" id="filterThisMonth" class="btn btn-secondary" title="Joriy oy">Bu oy</button>
+
     <button id="resetFilters" class="btn btn-secondary">Tozalash</button>
     <button type="button" id="exportExcelBtn" class="btn btn-primary" title="Joriy sana filtrlari bo'yicha Excel">Excel yuklash</button>
 </div>
@@ -307,26 +306,7 @@
         const day = String(d.getDate()).padStart(2, '0');
         return `${y}-${m}-${day}`;
     }
-    document.getElementById('filterThisWeek').addEventListener('click', () => {
-        const now = new Date();
-        const day = now.getDay();
-        const diffToMon = day === 0 ? -6 : 1 - day;
-        const mon = new Date(now);
-        mon.setDate(now.getDate() + diffToMon);
-        const sun = new Date(mon);
-        sun.setDate(mon.getDate() + 6);
-        document.getElementById('startDateFilter').value = toISODate(mon);
-        document.getElementById('endDateFilter').value = toISODate(sun);
-        loadAttendance();
-    });
-    document.getElementById('filterThisMonth').addEventListener('click', () => {
-        const now = new Date();
-        const start = new Date(now.getFullYear(), now.getMonth(), 1);
-        const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-        document.getElementById('startDateFilter').value = toISODate(start);
-        document.getElementById('endDateFilter').value = toISODate(end);
-        loadAttendance();
-    });
+
 
     document.getElementById('exportExcelBtn').addEventListener('click', () => {
         const startDate = document.getElementById('startDateFilter').value;

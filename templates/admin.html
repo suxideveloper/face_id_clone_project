@@ -127,10 +127,7 @@
                         <span class="action-icon">📋</span>
                         <span>Kunlik hisobot</span>
                     </a>
-                    <a href="/admin/settings" class="action-btn secondary">
-                        <span class="action-icon">⚙️</span>
-                        <span>Sozlamalar</span>
-                    </a>
+
 
                 </div>
             </div>
@@ -389,6 +386,30 @@
         font-size: 0.75rem;
         color: var(--text-light);
         font-weight: 600;
+    }
+
+    /* Dark mode for pulse cards */
+    html[data-theme="dark"] .pulse-item.on-time {
+        background: rgba(16, 185, 129, 0.12);
+        border-color: rgba(16, 185, 129, 0.25);
+    }
+
+    html[data-theme="dark"] .pulse-item.late {
+        background: rgba(245, 158, 11, 0.12);
+        border-color: rgba(245, 158, 11, 0.25);
+    }
+
+    html[data-theme="dark"] .pulse-item.absent {
+        background: rgba(239, 68, 68, 0.12);
+        border-color: rgba(239, 68, 68, 0.25);
+    }
+
+    html[data-theme="dark"] .pulse-num {
+        color: #e2e8f0;
+    }
+
+    html[data-theme="dark"] .pulse-desc {
+        color: #94a3b8;
     }
 
     /* Charts Row */
