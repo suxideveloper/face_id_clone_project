@@ -1,6 +1,5 @@
-# Faqat shu papkalardagi rasmlar yuklanmasin (Chunki bular juda ko'p bo'ladi)
-data/attendance_snapshots/
-data/debug_frames/
+# Data papkasi — har serverda o'ziga xos, gitda saqlanmaydi
+data/
 
 # Tizim fayllari
 __pycache__/
