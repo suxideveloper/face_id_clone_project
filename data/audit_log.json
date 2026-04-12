@@ -1,0 +1,12 @@
+[
+  {
+    "ts": "2026-04-08T11:15:27",
+    "actor": "admin",
+    "action": "attendance_delete",
+    "detail": {
+      "target_date": "2026-02-18",
+      "worker_id": "Suxrob",
+      "worker_name": "Suxrob Toshpulatov"
+    }
+  }
+]

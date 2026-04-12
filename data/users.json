@@ -47,12 +47,5 @@
     "department": "Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi",
     "position": "Engineer",
     "registered": true
-  },
-  "Dmitriy": {
-    "full_name": "Dmitriy Bazarov",
-    "phone": "+998993077516",
-    "department": "Intelektual dastury tizimlar qo'shma labaratoriyasi",
-    "position": "Kichik ilmiy xodim",
-    "registered": true
   }
 }

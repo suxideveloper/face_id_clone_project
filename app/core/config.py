@@ -44,4 +44,17 @@ class Settings:
     # RTSP Settings (legacy — only used when CAMERA_MODE=server)
     RTSP_URL: str = os.getenv("RTSP_URL", "")
 
+    # Telegram (ixtiyoriy — kunlik xulosa)
+    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    TELEGRAM_CHAT_ID: str = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+    TELEGRAM_DAILY_SUMMARY_HOUR: int = int(os.getenv("TELEGRAM_DAILY_SUMMARY_HOUR", "18"))
+    TELEGRAM_DAILY_SUMMARY_MINUTE: int = int(os.getenv("TELEGRAM_DAILY_SUMMARY_MINUTE", "0"))
+    # Har bir kelish/ketishda Telegramga xabar (1=yoq, 0=o'chirilgan)
+    TELEGRAM_NOTIFY_ATTENDANCE: bool = os.getenv("TELEGRAM_NOTIFY_ATTENDANCE", "1").strip().lower() not in (
+        "0",
+        "false",
+        "no",
+        "off",
+    )
+
 settings = Settings()

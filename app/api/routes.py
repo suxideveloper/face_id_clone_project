@@ -1,13 +1,14 @@
-from fastapi import APIRouter, Request, Form, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Request, Form, WebSocket, WebSocketDisconnect, Body
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import StreamingResponse, JSONResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, JSONResponse, RedirectResponse, Response
 from app.services.camera import camera_service
 from app.services.detector import detector
 from app.services.recognizer import recognizer
 import cv2
 import numpy as np
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
+from io import BytesIO
 import asyncio
 import os
 from app.core.config import settings
@@ -16,6 +17,25 @@ from app.services.tracker import Tracker
 from app.services.user_db import user_db
 from app.services.attendance_db import attendance_db
 from app.services.websocket_manager import ws_manager
+from app.services.schedule_settings import (
+    load_schedule,
+    save_schedule,
+    classify_attendance_status,
+    work_bounds_for_date,
+)
+from app.services.holidays_db import holidays_db
+from app.services import audit_log
+from app.services.telegram_notify import (
+    send_telegram_message,
+    send_telegram_message_result,
+    build_daily_summary_text,
+    fetch_chat_ids_from_updates,
+    save_chat_id_to_file,
+    is_telegram_ready,
+    get_effective_chat_id,
+    process_telegram_updates_long_poll,
+    notify_attendance_event,
+)
 from app.services.video_processor import get_or_create_processor, remove_processor
 import base64
 import uuid
@@ -301,6 +321,50 @@ def get_current_admin(request: Request):
         user["role"] = "admin"
     return user
 
+TELEGRAM_SENT_FLAG = os.path.join(settings.DATA_DIR, "telegram_last_sent.txt")
+
+
+async def telegram_daily_scheduler_loop():
+    """Kunlik Telegram xulosasini sozlangan vaqtda bir marta yuborish."""
+    while True:
+        await asyncio.sleep(45)
+        try:
+            if not settings.TELEGRAM_BOT_TOKEN or not settings.TELEGRAM_CHAT_ID:
+                continue
+            now = datetime.now()
+            if (
+                now.hour != settings.TELEGRAM_DAILY_SUMMARY_HOUR
+                or now.minute != settings.TELEGRAM_DAILY_SUMMARY_MINUTE
+            ):
+                continue
+            today_s = now.date().isoformat()
+            if os.path.exists(TELEGRAM_SENT_FLAG):
+                with open(TELEGRAM_SENT_FLAG, "r", encoding="utf-8") as f:
+                    if f.read().strip() == today_s:
+                        continue
+            text = await asyncio.to_thread(build_daily_summary_text)
+            ok = await asyncio.to_thread(send_telegram_message, text)
+            if ok:
+                os.makedirs(settings.DATA_DIR, exist_ok=True)
+                with open(TELEGRAM_SENT_FLAG, "w", encoding="utf-8") as f:
+                    f.write(today_s)
+        except Exception as e:
+            print(f"Telegram scheduler: {e}")
+
+
+async def telegram_bot_updates_loop():
+    """Long polling: /start ga javob, Chat ID ko'rsatish (webhook bo'lmasa)."""
+    while True:
+        if not (settings.TELEGRAM_BOT_TOKEN or "").strip():
+            await asyncio.sleep(60)
+            continue
+        try:
+            await asyncio.to_thread(process_telegram_updates_long_poll)
+        except Exception as e:
+            print(f"Telegram bot polling: {e}")
+            await asyncio.sleep(5)
+
+
 @router.get("/")
 async def index(request: Request):
     user = get_current_admin(request)
@@ -359,6 +423,80 @@ async def logout(request: Request):
     response.delete_cookie("admin_session")
     return response
 
+@router.get("/daily_report")
+async def daily_report(request: Request):
+    user = get_current_admin(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    
+    if user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/daily_report", status_code=303)
+
+    users = user_db.get_all_users()
+    today_records = attendance_db.get_all_today()
+    today_d = datetime.now().date()
+    today_iso = today_d.isoformat()
+    holiday_label = holidays_db.get_label(today_iso)
+
+    present_users = []
+    absent_users = []
+
+    work_start_dt, work_end_dt = work_bounds_for_date(today_d)
+
+    for name, user_data in users.items():
+        if name in today_records:
+            record = today_records[name]
+            check_in_str = record.get("check_in_time", "")
+            check_out_str = record.get("check_out_time", "")
+            check_in_dt = None
+            check_out_dt = None
+
+            if check_in_str:
+                try:
+                    check_in_dt = datetime.fromisoformat(check_in_str)
+                    check_in_str = check_in_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            if check_out_str:
+                try:
+                    check_out_dt = datetime.fromisoformat(check_out_str)
+                    check_out_str = check_out_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            st = classify_attendance_status(check_in_dt, check_out_dt, today_d)
+            status_label = st["label"]
+            status_type = st["type"]
+
+            present_users.append({
+                "username": name,
+                "full_name": user_data.get("full_name", name),
+                "department": user_data.get("department", "Unassigned"),
+                "check_in_time": check_in_str,
+                "check_out_time": check_out_str,
+                "status_label": status_label,
+                "status_type": status_type
+            })
+        else:
+            if not holiday_label:
+                absent_users.append({
+                    "username": name,
+                    "full_name": user_data.get("full_name", name),
+                    "department": user_data.get("department", "Unassigned")
+                })
+
+    return templates.TemplateResponse("daily_report.html", {
+        "request": request,
+        "user": user,
+        "present_users": present_users,
+        "absent_users": absent_users,
+        "today_date": today_iso,
+        "holiday_label": holiday_label,
+        "work_start": work_start_dt.strftime("%H:%M"),
+        "work_end": work_end_dt.strftime("%H:%M"),
+    })
+
 @router.get("/admin")
 async def admin_dashboard(request: Request):
     user = get_current_admin(request)
@@ -408,24 +546,23 @@ async def admin_dashboard(request: Request):
         present_count = len(today_records)
         attendance_rate = int((present_count / total_employees) * 100)
         
-        # Calculate On Time vs Late (Assume 9:00 AM start time)
-        # We need to parse check_in_time for each record
+        ws, _we = work_bounds_for_date(today_date)
         for name, record in today_records.items():
             check_in_str = record.get("check_in_time")
             if check_in_str:
                 try:
                     check_in_dt = datetime.fromisoformat(check_in_str)
-                    # Create 9 AM threshold for that day
-                    nine_am = check_in_dt.replace(hour=9, minute=0, second=0, microsecond=0)
-                    
-                    if check_in_dt > nine_am:
+                    if check_in_dt > ws:
                         late_count += 1
                     else:
                         on_time_count += 1
                 except ValueError:
                     pass
-        
-        absent_count = total_employees - present_count
+
+        if holidays_db.is_holiday(today_date.isoformat()):
+            absent_count = 0
+        else:
+            absent_count = total_employees - present_count
 
     # 3. Growth (Today vs Yesterday)
     yesterday_date = (today_date - timedelta(days=1)).isoformat()
@@ -686,10 +823,58 @@ async def get_user_attendance_stats(name: str):
         
         monthly_hours.append(round(week_total, 1))
     
+    # Yearly stats (Jan -> Dec)
+    import calendar
+    yearly_labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    yearly_hours = [0] * 12
+    current_year = today.year
+    
+    for month_index in range(12):
+        month_number = month_index + 1
+        month_total = 0
+        num_days = calendar.monthrange(current_year, month_number)[1]
+        
+        for day in range(1, num_days + 1):
+            try:
+                d = datetime(current_year, month_number, day).date()
+            except ValueError:
+                continue
+            if d > today:
+                break
+                
+            d_str = d.isoformat()
+            records = attendance_db.get_records_by_date(d_str)
+            user_record = records.get(name)
+            
+            if user_record:
+                check_in = user_record.get("check_in_time")
+                check_out = user_record.get("check_out_time")
+                
+                hours = 0
+                if check_in and check_out:
+                    try:
+                        start = datetime.fromisoformat(check_in)
+                        end = datetime.fromisoformat(check_out)
+                        seconds = (end - start).total_seconds()
+                        hours = seconds / 3600
+                    except ValueError: pass
+                elif check_in and not check_out and d == today:
+                     # Calculate pending hours for today
+                     try:
+                        start = datetime.fromisoformat(check_in)
+                        seconds = (datetime.now() - start).total_seconds()
+                        hours = seconds / 3600
+                     except ValueError: pass
+
+                month_total += hours
+                
+        yearly_hours[month_index] = round(month_total, 1)
+
     # Summary stats
     total_days_present = sum(1 for h in weekly_hours if h > 0)
     total_weekly_hours = sum(weekly_hours)
     total_monthly_hours = sum(monthly_hours)
+    total_yearly_hours = sum(yearly_hours)
     
     return JSONResponse({
         "weekly": {
@@ -700,10 +885,15 @@ async def get_user_attendance_stats(name: str):
             "labels": monthly_labels,
             "data": monthly_hours
         },
+        "yearly": {
+            "labels": yearly_labels,
+            "data": yearly_hours
+        },
         "summary": {
             "days_present_this_week": total_days_present,
             "total_weekly_hours": round(total_weekly_hours, 1),
-            "total_monthly_hours": round(total_monthly_hours, 1)
+            "total_monthly_hours": round(total_monthly_hours, 1),
+            "total_yearly_hours": round(total_yearly_hours, 1)
         }
     })
 
@@ -1216,6 +1406,15 @@ async def process_attendance_queue():
                         print(f"Error calc duration: {e}")
                         
                     await ws_manager.send_check_out(worker_id, full_name, working_time, check_in_time=check_in_str)
+
+                if log_db:
+                    await asyncio.to_thread(
+                        notify_attendance_event,
+                        result["event_type"],
+                        full_name,
+                        worker_id,
+                        result["record"],
+                    )
                 
         except Exception as e:
             print(f"Attendance processing error: {e}")
@@ -1291,9 +1490,16 @@ async def attendance_page(request: Request):
     })
 
 @router.delete("/api/attendance/{date_str}/{worker_id}")
-async def delete_attendance_record(date_str: str, worker_id: str):
+async def delete_attendance_record(request: Request, date_str: str, worker_id: str):
     """Delete a specific attendance record."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
+    info = user_db.get_user(worker_id) or {}
+    wname = info.get("full_name", worker_id)
+    actor = user.get("username", "admin")
     if attendance_db.delete_record(date_str, worker_id):
+        audit_log.log_attendance_delete(actor, date_str, worker_id, wname)
         return JSONResponse({"success": True})
     return JSONResponse({"success": False, "message": "Record not found"}, status_code=404)
 
@@ -1309,34 +1515,150 @@ async def get_all_attendance(
     for record in raw_records:
         worker_id = record["worker_id"]
         user_info = user_db.get_user(worker_id) or {}
-        
-        # Calculate Working Hours
+
         working_hours = "-"
         if record.get("check_in_time") and record.get("check_out_time"):
             try:
                 cin = datetime.fromisoformat(record["check_in_time"])
                 cout = datetime.fromisoformat(record["check_out_time"])
-                dt = cout - cin
-                h, r = divmod(dt.seconds, 3600)
-                m, _ = divmod(r, 60)
-                working_hours = f"{h}h {m}m"
-            except:
+                total_sec = int((cout - cin).total_seconds())
+                if total_sec >= 0:
+                    h, r = divmod(total_sec, 3600)
+                    m, _ = divmod(r, 60)
+                    working_hours = f"{h}h {m}m"
+            except Exception:
                 pass
 
-        # Merge record with user info
+        d_str = record.get("date") or ""
+        try:
+            rd = date_type.fromisoformat(d_str) if d_str else date_type.today()
+        except ValueError:
+            rd = date_type.today()
+        cin_dt = (
+            datetime.fromisoformat(record["check_in_time"])
+            if record.get("check_in_time")
+            else None
+        )
+        cout_dt = (
+            datetime.fromisoformat(record["check_out_time"])
+            if record.get("check_out_time")
+            else None
+        )
+        st = classify_attendance_status(cin_dt, cout_dt, rd)
+
         enriched_record = {
             **record,
             "full_name": user_info.get("full_name", worker_id),
             "department": user_info.get("department", "Unknown"),
             "position": user_info.get("position", "Unknown"),
-            # Format times for display if present
-            "check_in_display": record["check_in_time"].split('T')[1][:8] if record["check_in_time"] else "-",
-            "check_out_display": record["check_out_time"].split('T')[1][:8] if record["check_out_time"] else "-",
-            "working_hours": working_hours
+            "check_in_display": record["check_in_time"].split("T")[1][:8]
+            if record.get("check_in_time")
+            else "-",
+            "check_out_display": record["check_out_time"].split("T")[1][:8]
+            if record.get("check_out_time")
+            else "-",
+            "working_hours": working_hours,
+            "status_label": st["label"],
+            "late": st["late"],
+            "early_leave": st["early_leave"],
+            "status_type": st["type"],
         }
         enriched_records.append(enriched_record)
         
     return JSONResponse(content=enriched_records)
+
+
+def _format_working_hours(check_in_iso, check_out_iso) -> str:
+    if not check_in_iso or not check_out_iso:
+        return "-"
+    try:
+        cin = datetime.fromisoformat(check_in_iso)
+        cout = datetime.fromisoformat(check_out_iso)
+        total_sec = int((cout - cin).total_seconds())
+        if total_sec < 0:
+            return "-"
+        h, r = divmod(total_sec, 3600)
+        m, _ = divmod(r, 60)
+        return f"{h}h {m}m"
+    except Exception:
+        return "-"
+
+
+@router.get("/api/attendance/export/excel")
+async def export_attendance_excel(
+    start_date: str = None,
+    end_date: str = None,
+):
+    """Barcha davomat yozuvlarini Excel (.xlsx) fayl sifatida yuklab olish."""
+    from openpyxl import Workbook
+
+    raw_records = attendance_db.get_all_records(start_date, end_date)
+    rows: list[dict] = []
+
+    for record in raw_records:
+        worker_id = record["worker_id"]
+        user_info = user_db.get_user(worker_id) or {}
+        cin_raw = record.get("check_in_time")
+        cout_raw = record.get("check_out_time")
+        check_in_disp = cin_raw.split("T")[1][:8] if cin_raw else "-"
+        check_out_disp = cout_raw.split("T")[1][:8] if cout_raw else "-"
+
+        rows.append({
+            "date": record.get("date", ""),
+            "worker_id": worker_id,
+            "full_name": user_info.get("full_name", worker_id),
+            "department": user_info.get("department", "Unknown"),
+            "position": user_info.get("position", "Unknown"),
+            "check_in": check_in_disp,
+            "check_out": check_out_disp,
+            "working_hours": _format_working_hours(cin_raw, cout_raw),
+        })
+
+    rows.sort(key=lambda r: (r["date"], r["full_name"]))
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Davomat"
+    ws.append([
+        "Sana",
+        "Xodim ID",
+        "To'liq ism",
+        "Bo'lim",
+        "Lavozim",
+        "Kelgan vaqti",
+        "Ketgan vaqti",
+        "Ishlangan vaqt",
+    ])
+    for r in rows:
+        ws.append([
+            r["date"],
+            r["worker_id"],
+            r["full_name"],
+            r["department"],
+            r["position"],
+            r["check_in"],
+            r["check_out"],
+            r["working_hours"],
+        ])
+
+    buf = BytesIO()
+    wb.save(buf)
+
+    parts = []
+    if start_date:
+        parts.append(start_date)
+    if end_date:
+        parts.append(end_date)
+    suffix = "_".join(parts) if parts else "barcha"
+    filename = f"davomat_{suffix}.xlsx"
+
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 
 
 @router.get("/api/attendance/today")
@@ -1351,3 +1673,174 @@ async def get_worker_attendance(worker_id: str, limit: int = 30):
     """Get attendance history for a specific worker."""
     history = attendance_db.get_worker_history(worker_id, limit)
     return JSONResponse(content={"worker_id": worker_id, "history": history})
+
+
+# ========== SETTINGS, AUDIT, TELEGRAM ==========
+
+
+@router.get("/admin/settings")
+async def admin_settings_page(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/admin/settings", status_code=303)
+    sched = load_schedule()
+    hol = holidays_db.list_all()
+    tg_on = is_telegram_ready()
+    chat_hint = get_effective_chat_id()
+    return templates.TemplateResponse(
+        "admin_settings.html",
+        {
+            "request": request,
+            "user": user,
+            "schedule": sched,
+            "holidays": hol,
+            "telegram_configured": tg_on,
+            "telegram_chat_masked": (chat_hint[:3] + "…" + chat_hint[-2:]) if len(chat_hint) > 6 else (chat_hint or ""),
+            "telegram_hour": settings.TELEGRAM_DAILY_SUMMARY_HOUR,
+            "telegram_minute": settings.TELEGRAM_DAILY_SUMMARY_MINUTE,
+            "telegram_time_display": (
+                f"{settings.TELEGRAM_DAILY_SUMMARY_HOUR:02d}:"
+                f"{settings.TELEGRAM_DAILY_SUMMARY_MINUTE:02d}"
+            ),
+        },
+    )
+
+
+@router.get("/admin/audit")
+async def admin_audit_page(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/admin/audit", status_code=303)
+    entries = audit_log.get_recent(300)
+    return templates.TemplateResponse(
+        "admin_audit.html",
+        {"request": request, "user": user, "entries": entries},
+    )
+
+
+@router.get("/api/settings/schedule")
+async def api_get_schedule(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    return JSONResponse(load_schedule())
+
+
+@router.put("/api/settings/schedule")
+async def api_put_schedule(request: Request, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    ws = (body.get("work_start") or "09:00").strip()
+    we = (body.get("work_end") or "18:00").strip()
+    save_schedule(ws, we)
+    return JSONResponse({"success": True, **load_schedule()})
+
+
+@router.get("/api/settings/holidays")
+async def api_get_holidays(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    return JSONResponse(holidays_db.list_all())
+
+
+@router.post("/api/settings/holidays")
+async def api_post_holiday(request: Request, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    d = (body.get("date") or "").strip()
+    if not d:
+        return JSONResponse({"error": "date required"}, status_code=400)
+    label = (body.get("label") or "").strip()
+    holidays_db.add(d, label)
+    return JSONResponse({"success": True, "holidays": holidays_db.list_all()})
+
+
+@router.delete("/api/settings/holidays/{date_str}")
+async def api_delete_holiday(request: Request, date_str: str):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    ok = holidays_db.remove(date_str)
+    if not ok:
+        return JSONResponse({"success": False}, status_code=404)
+    return JSONResponse({"success": True, "holidays": holidays_db.list_all()})
+
+
+@router.get("/api/audit-log")
+async def api_audit_log(request: Request, limit: int = 200):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    return JSONResponse(audit_log.get_recent(min(limit, 500)))
+
+
+@router.post("/api/telegram/test")
+async def api_telegram_test(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if not (settings.TELEGRAM_BOT_TOKEN or "").strip():
+        return JSONResponse(
+            {"ok": False, "error": "TELEGRAM_BOT_TOKEN .env da yo'q"},
+            status_code=400,
+        )
+    if not get_effective_chat_id():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Chat ID yo'q. Botga /start yuboring va «Chat ID ni topish» yoki .env da TELEGRAM_CHAT_ID.",
+            },
+            status_code=400,
+        )
+    r = send_telegram_message_result(
+        "✅ Test: Davomat tizimi — Telegram ulanishi ishlayapti."
+    )
+    status = 200 if r.get("ok") else 502
+    return JSONResponse(r, status_code=status)
+
+
+@router.post("/api/telegram/send-summary")
+async def api_telegram_send_summary(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if not (settings.TELEGRAM_BOT_TOKEN or "").strip() or not get_effective_chat_id():
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Token yoki Chat ID to'liq emas (.env yoki Chat ID saqlash).",
+            },
+            status_code=400,
+        )
+    text = build_daily_summary_text()
+    r = send_telegram_message_result(text)
+    status = 200 if r.get("ok") else 502
+    return JSONResponse(r, status_code=status)
+
+
+@router.get("/api/telegram/discover-chats")
+async def api_telegram_discover_chats(request: Request):
+    """getUpdates orqali chat_id ro'yxati (avval botga xabar yuboring)."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if not (settings.TELEGRAM_BOT_TOKEN or "").strip():
+        return JSONResponse({"ok": False, "error": "TELEGRAM_BOT_TOKEN yo'q"}, status_code=400)
+    data = fetch_chat_ids_from_updates(80)
+    return JSONResponse({"ok": True, **data})
+
+
+@router.post("/api/settings/telegram-chat")
+async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
+    """Chat ID ni data/telegram_chat_id.txt ga saqlash (.env dan keyin ustunlik)."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    cid = str(body.get("chat_id", "")).strip()
+    if not cid:
+        return JSONResponse({"ok": False, "error": "chat_id kerak"}, status_code=400)
+    save_chat_id_to_file(cid)
+    return JSONResponse({"ok": True, "chat_id_saved": True})

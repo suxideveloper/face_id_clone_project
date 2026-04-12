@@ -5,9 +5,8 @@ data/debug_frames/
 # Tizim fayllari
 __pycache__/
 venv/
+.venv/
 .env
-.DS_Storevenv/
-__pycache__/
 *.pyc
 .DS_Store
 
@@ -27,3 +26,5 @@ deploy/ssl/
 .vscode/
 .idea/
 data/attendance.json
+data/telegram_chat_id.txt
+data/telegram_update_offset.txt

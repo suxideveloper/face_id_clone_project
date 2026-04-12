@@ -39,6 +39,10 @@ async def lifespan(app: FastAPI):
     from app.api.routes import start_attendance_processor
     import asyncio
     asyncio.create_task(routes.process_attendance_queue())
+    from app.services.telegram_notify import ensure_telegram_long_poll_mode
+    ensure_telegram_long_poll_mode()
+    asyncio.create_task(routes.telegram_bot_updates_loop())
+    asyncio.create_task(routes.telegram_daily_scheduler_loop())
     
     yield
     # Shutdown

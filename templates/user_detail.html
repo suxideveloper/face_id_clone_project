@@ -77,10 +77,12 @@
                 <span class="stat-badge blue" id="daysPresent">0 kunlar</span>
                 <span class="stat-badge green" id="weeklyHours">0h Bu hafta</span>
                 <span class="stat-badge purple" id="monthlyHours">0h Bu oy</span>
+                <span class="stat-badge orange" id="yearlyHours">0h Bu yil</span>
             </div>
             <div class="chart-controls">
                 <button id="btnWeekly" onclick="toggleChart('weekly')" class="chart-toggle active">Bu hafta</button>
                 <button id="btnMonthly" onclick="toggleChart('monthly')" class="chart-toggle">Bu oy</button>
+                <button id="btnYearly" onclick="toggleChart('yearly')" class="chart-toggle">Yillik</button>
             </div>
         </div>
         <div class="card-body">
@@ -300,6 +302,11 @@
         color: #7c3aed;
     }
 
+    .stat-badge.orange {
+        background: #ffedd5;
+        color: #c2410c;
+    }
+
     .chart-controls {
         display: flex;
         background: var(--bg-primary);
@@ -325,9 +332,14 @@
     }
 
     .chart-toggle.active {
-        background: white;
+        background: var(--bg-white);
         color: var(--primary);
         box-shadow: var(--shadow-sm);
+    }
+
+    html[data-theme="dark"] .chart-toggle.active {
+        box-shadow: none;
+        border: 1px solid var(--border-color);
     }
 
     .chart-wrapper {
@@ -391,6 +403,7 @@
             document.getElementById('daysPresent').textContent = data.summary.days_present_this_week + ' kunlar';
             document.getElementById('weeklyHours').textContent = data.summary.total_weekly_hours + ' soat  Bu hafta';
             document.getElementById('monthlyHours').textContent = data.summary.total_monthly_hours + ' soat  Bu oy';
+            document.getElementById('yearlyHours').textContent = data.summary.total_yearly_hours + ' soat  Bu yil';
 
             // Initialize Chart with Weekly Data
             const ctx = document.getElementById('attendanceChart').getContext('2d');
@@ -462,7 +475,7 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        backgroundColor: 'rgba(60, 83, 114, 0.92)',
                         padding: 12,
                         cornerRadius: 8,
                         displayColors: false,
@@ -487,19 +500,29 @@
 
         const btnWeekly = document.getElementById('btnWeekly');
         const btnMonthly = document.getElementById('btnMonthly');
+        const btnYearly = document.getElementById('btnYearly');
 
         if (type === 'weekly') {
             btnWeekly.classList.add('active');
             btnMonthly.classList.remove('active');
+            btnYearly.classList.remove('active');
 
             attendanceChart.data.labels = chartData.weekly.labels;
             attendanceChart.data.datasets[0].data = chartData.weekly.data;
-        } else {
+        } else if (type === 'monthly') {
             btnWeekly.classList.remove('active');
             btnMonthly.classList.add('active');
+            btnYearly.classList.remove('active');
 
             attendanceChart.data.labels = chartData.monthly.labels;
             attendanceChart.data.datasets[0].data = chartData.monthly.data;
+        } else if (type === 'yearly') {
+            btnWeekly.classList.remove('active');
+            btnMonthly.classList.remove('active');
+            btnYearly.classList.add('active');
+
+            attendanceChart.data.labels = chartData.yearly.labels;
+            attendanceChart.data.datasets[0].data = chartData.yearly.data;
         }
 
         attendanceChart.update();

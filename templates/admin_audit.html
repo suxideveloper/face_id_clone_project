@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Audit jurnali</h1>
+        <p style="color: var(--text-light); margin-top: 4px;">Davomat yozuvlarini kim o‘chirgani (oxirgi yozuvlar)</p>
+    </div>
+    <a href="/admin" class="btn btn-secondary">Orqaga</a>
+</div>
+
+<div class="table-container">
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>Vaqt</th>
+                <th>Amalga oshiruvchi</th>
+                <th>Harakat</th>
+                <th>Tafsilot</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for e in entries %}
+            <tr>
+                <td style="white-space: nowrap;">{{ e.ts }}</td>
+                <td>{{ e.actor }}</td>
+                <td>{{ e.action }}</td>
+                <td style="font-size: 0.9rem; color: var(--text-medium);">
+                    {% if e.action == 'attendance_delete' and e.detail %}
+                    Sana: {{ e.detail.target_date }} — {{ e.detail.worker_name }} ({{ e.detail.worker_id }})
+                    {% else %}
+                    {{ e.detail }}
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; padding: 40px; color: var(--text-light);">Hozircha yozuvlar yo‘q.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

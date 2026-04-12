@@ -93,7 +93,7 @@
                                 <div class="pulse-icon">🟠</div>
                                 <div class="pulse-info">
                                     <span class="pulse-num" id="stat-late">0</span>
-                                    <span class="pulse-desc">Kechikkanlar (>9:00)</span>
+                                    <span class="pulse-desc">Kechikkanlar (grafikdan keyin)</span>
                                 </div>
                             </div>
                             <div class="pulse-item absent">
@@ -122,6 +122,14 @@
                     <a href="/users" class="action-btn tertiary">
                         <span class="action-icon">👥</span>
                         <span>Xodimlar</span>
+                    </a>
+                    <a href="/daily_report" class="action-btn primary" style="background: linear-gradient(135deg, var(--accent-orange), #d97706); color: white;">
+                        <span class="action-icon">📋</span>
+                        <span>Kunlik hisobot</span>
+                    </a>
+                    <a href="/admin/settings" class="action-btn secondary">
+                        <span class="action-icon">⚙️</span>
+                        <span>Sozlamalar</span>
                     </a>
 
                 </div>
@@ -652,9 +660,14 @@
     }
 
     .chart-toggle.active {
-        background: white;
+        background: var(--bg-white);
         color: var(--primary);
         box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+
+    html[data-theme="dark"] .chart-toggle.active {
+        box-shadow: none;
+        border: 1px solid var(--border-color);
     }
 
     .quick-stats-row {
@@ -775,6 +788,12 @@
         gap: 24px;
     }
 
+    html[data-theme="dark"] .dashboard-header-new {
+        background: linear-gradient(120deg, #3c5372 0%, #4a5f78 100%);
+        border-color: var(--border-color);
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
     .header-profile-section {
         display: flex;
         align-items: center;
@@ -803,6 +822,10 @@
         line-height: 1.2;
     }
 
+    html[data-theme="dark"] .header-welcome h1 {
+        color: var(--text-dark);
+    }
+
     .user-highlight {
         background: linear-gradient(90deg, #3b82f6, #8b5cf6);
         background-clip: text;
@@ -814,6 +837,10 @@
         font-size: 1rem;
         margin: 0;
         font-weight: 500;
+    }
+
+    html[data-theme="dark"] .header-welcome p {
+        color: var(--text-medium);
     }
 
     .header-stats-group {
@@ -831,6 +858,11 @@
         gap: 16px;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
         transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    html[data-theme="dark"] .stat-pill {
+        background: rgba(60, 83, 114, 0.65);
+        border-color: var(--border-color);
     }
 
     .stat-pill:hover {
@@ -870,12 +902,20 @@
         line-height: 1.1;
     }
 
+    html[data-theme="dark"] .stat-value-new {
+        color: var(--text-dark);
+    }
+
     .stat-label-new {
         font-size: 0.75rem;
         color: #64748b;
         font-weight: 600;
         text-transform: uppercase;
         letter-spacing: 0.5px;
+    }
+
+    html[data-theme="dark"] .stat-label-new {
+        color: var(--text-light);
     }
 
     @media (max-width: 768px) {
@@ -1063,7 +1103,7 @@
                 plugins: {
                     legend: { display: false },
                     tooltip: {
-                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        backgroundColor: 'rgba(60, 83, 114, 0.92)',
                         titleColor: '#fff',
                         bodyColor: '#cbd5e1',
                         padding: 12,

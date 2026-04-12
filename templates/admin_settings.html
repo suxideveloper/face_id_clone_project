@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Tizim sozlamalari</h1>
+        <p style="color: var(--text-light); margin-top: 4px;">Ish vaqti, dam olish kunlari va Telegram xabarlari</p>
+    </div>
+    <a href="/admin" class="btn btn-secondary">Orqaga</a>
+</div>
+
+<div class="settings-grid" style="display: grid; gap: 24px; max-width: 960px;">
+
+    <div class="card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 24px; border: 1px solid var(--border-color);">
+        <h2 style="margin-bottom: 16px; font-size: 1.15rem;">⏰ Ish grafigi (kech / erta)</h2>
+        <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 16px;">
+            Kelish va ketish vaqtlari bu chegaralarga qarab baholanadi (kunlik hisobot va davomat jadvali).
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end;">
+            <div>
+                <label for="workStart" style="display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 4px;">Ish boshlanishi</label>
+                <input type="time" id="workStart" value="{{ schedule.work_start }}" class="form-input" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            </div>
+            <div>
+                <label for="workEnd" style="display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 4px;">Ish tugashi</label>
+                <input type="time" id="workEnd" value="{{ schedule.work_end }}" class="form-input" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            </div>
+            <button type="button" id="btnSaveSchedule" class="btn btn-primary">Saqlash</button>
+        </div>
+        <p id="scheduleMsg" style="margin-top: 12px; font-size: 0.9rem;"></p>
+    </div>
+
+    <div class="card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 24px; border: 1px solid var(--border-color);">
+        <h2 style="margin-bottom: 16px; font-size: 1.15rem;">📅 Rasmiy dam olish kunlari</h2>
+        <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 16px;">
+            Belgilangan kunlarda «kelmaganlar» ro'yxati ko'rsatilmaydi (ish kuni emas).
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; margin-bottom: 20px;">
+            <div>
+                <label for="holDate" style="display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 4px;">Sana</label>
+                <input type="date" id="holDate" class="form-input" style="padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            </div>
+            <div style="flex: 1; min-width: 180px;">
+                <label for="holLabel" style="display: block; font-size: 0.8rem; color: var(--text-light); margin-bottom: 4px;">Izoh (ixtiyoriy)</label>
+                <input type="text" id="holLabel" placeholder="Masalan: Mustaqillik kuni" class="form-input" style="width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            </div>
+            <button type="button" id="btnAddHoliday" class="btn btn-primary">Qo'shish</button>
+        </div>
+        <ul id="holidayList" style="list-style: none; padding: 0; margin: 0;">
+            {% for h in holidays %}
+            <li style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; margin-bottom: 8px; background: var(--bg-primary);">
+                <span><strong>{{ h.date }}</strong> — {{ h.label }}</span>
+                <button type="button" class="btn btn-secondary btn-sm" data-date="{{ h.date }}" onclick="removeHoliday(this.dataset.date)">O'chirish</button>
+            </li>
+            {% else %}
+            <li style="color: var(--text-light);">Hozircha sanalar kiritilmagan.</li>
+            {% endfor %}
+        </ul>
+        <p id="holidayMsg" style="margin-top: 12px; font-size: 0.9rem;"></p>
+    </div>
+
+    <div class="card" style="background: var(--bg-white); border-radius: var(--radius-lg); padding: 24px; border: 1px solid var(--border-color);">
+        <h2 style="margin-bottom: 16px; font-size: 1.15rem;">✈️ Telegram</h2>
+        <p style="color: var(--text-light); font-size: 0.9rem; margin-bottom: 12px;">
+            Token: <code>.env</code> → <code>TELEGRAM_BOT_TOKEN</code>.
+            <strong>Chat ID</strong> shart — xabar shu yerga ketadi (shaxsiy yoki guruh).
+            Chat ID ni quyidagi «Topish» yoki qo'lda kiritib saqlang (<code>data/telegram_chat_id.txt</code>).
+            Kunlik xulosa: <strong>{{ telegram_time_display }}</strong> (server vaqti).
+            <br><span style="color: var(--text-medium);">Har bir <strong>kelish/ketish</strong> (yuz tanilganda) ham shu chatga qisqa xabar yuboriladi — o‘chirish: <code>TELEGRAM_NOTIFY_ATTENDANCE=0</code> (.env).</span>
+        </p>
+        <ol style="color: var(--text-medium); font-size: 0.9rem; margin: 0 0 16px 1.2rem; padding: 0;">
+            <li>Telegramda <strong>@airi_faceid_bot</strong> ni oching va <strong>Start</strong> bosing.</li>
+            <li>«Chat ID ni topish» tugmasini bosing — ro'yxatdan o'z chattingizni tanlang yoki ID ni qo'lda yozing.</li>
+            <li>«Chat ID ni saqlash», keyin «Test xabar».</li>
+        </ol>
+        <p style="margin-bottom: 12px;">
+            {% if telegram_configured %}
+            <span style="color: var(--accent-green); font-weight: 600;">● Token + Chat ID tayyor</span>
+            {% if telegram_chat_masked %}<span style="color: var(--text-light); margin-left: 8px;">(chat: {{ telegram_chat_masked }})</span>{% endif %}
+            {% else %}
+            <span style="color: var(--accent-orange); font-weight: 600;">○ Chat ID hali yo'q — xabar ketmaydi</span>
+            {% endif %}
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px;">
+            <input type="text" id="chatIdManual" placeholder="Chat ID (masalan 123456789 yoki -100...)" class="form-input"
+                style="flex: 1; min-width: 220px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            <button type="button" id="btnSaveChatId" class="btn btn-primary">Chat ID ni saqlash</button>
+            <button type="button" id="btnDiscoverChat" class="btn btn-secondary">Chat ID ni topish</button>
+        </div>
+        <div id="discoverBox" style="display: none; margin-bottom: 12px; padding: 12px; border-radius: 8px; background: var(--bg-primary); border: 1px solid var(--border-color); font-size: 0.9rem;"></div>
+        <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+            <button type="button" id="btnTgTest" class="btn btn-secondary">Test xabar</button>
+            <button type="button" id="btnTgSummary" class="btn btn-primary">Hozirgi kunlik xulosani yuborish</button>
+        </div>
+        <p id="tgMsg" style="margin-top: 12px; font-size: 0.9rem; white-space: pre-wrap;"></p>
+    </div>
+</div>
+
+<script>
+    function show(el, text, ok) {
+        el.textContent = text;
+        el.style.color = ok ? 'var(--accent-green)' : 'var(--accent-red)';
+    }
+
+    document.getElementById('btnSaveSchedule').addEventListener('click', async () => {
+        const msg = document.getElementById('scheduleMsg');
+        const work_start = document.getElementById('workStart').value;
+        const work_end = document.getElementById('workEnd').value;
+        if (!work_start || !work_end) { show(msg, "Vaqlarni to'ldiring.", false); return; }
+        const r = await fetch('/api/settings/schedule', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ work_start, work_end })
+        });
+        if (r.ok) show(msg, 'Saqlandi.', true);
+        else show(msg, 'Xato: ' + r.status, false);
+    });
+
+    document.getElementById('btnAddHoliday').addEventListener('click', async () => {
+        const msg = document.getElementById('holidayMsg');
+        const date = document.getElementById('holDate').value;
+        const label = document.getElementById('holLabel').value;
+        if (!date) { show(msg, 'Sanani tanlang.', false); return; }
+        const r = await fetch('/api/settings/holidays', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, label })
+        });
+        const j = await r.json();
+        if (r.ok) { location.reload(); }
+        else show(msg, j.error || 'Xato', false);
+    });
+
+    async function removeHoliday(date) {
+        if (!confirm('Bu sanani olib tashlaysizmi?')) return;
+        const r = await fetch('/api/settings/holidays/' + encodeURIComponent(date), { method: 'DELETE' });
+        if (r.ok) location.reload();
+    }
+
+    document.getElementById('btnSaveChatId').addEventListener('click', async () => {
+        const msg = document.getElementById('tgMsg');
+        const chat_id = document.getElementById('chatIdManual').value.trim();
+        if (!chat_id) { show(msg, "Chat ID ni kiriting.", false); return; }
+        const r = await fetch('/api/settings/telegram-chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id })
+        });
+        const j = await r.json();
+        if (j.ok) { show(msg, 'Chat ID saqlandi. Endi «Test xabar» ni bosing.', true); location.reload(); }
+        else show(msg, j.error || 'Xato', false);
+    });
+
+    document.getElementById('btnDiscoverChat').addEventListener('click', async () => {
+        const box = document.getElementById('discoverBox');
+        const msg = document.getElementById('tgMsg');
+        box.style.display = 'block';
+        box.textContent = 'Yuklanmoqda...';
+        const r = await fetch('/api/telegram/discover-chats');
+        const j = await r.json();
+        if (!j.ok && j.error) {
+            box.innerHTML = '<span style="color:var(--accent-red);">' + j.error + '</span>';
+            return;
+        }
+        if (j.error) {
+            box.innerHTML = '<span style="color:var(--accent-red);">' + j.error + '</span>';
+            return;
+        }
+        const chats = j.chats || [];
+        if (chats.length === 0) {
+            box.innerHTML = 'Hozircha yangilik yo\'q. Avval botga <strong>/start</strong> yuboring, keyin yana «Topish».';
+            return;
+        }
+        box.innerHTML = '<strong>Topilgan chatlar:</strong><br>' + chats.map(c =>
+            `<div style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+                <span>${c.chat_id} — ${c.type} ${c.title ? '(' + c.title + ')' : ''}</span>
+                <button type="button" class="btn btn-secondary" style="padding:4px 10px;font-size:0.85rem;" data-cid="${c.chat_id}">Tanlash</button>
+            </div>`
+        ).join('');
+        box.querySelectorAll('button[data-cid]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('chatIdManual').value = btn.getAttribute('data-cid');
+                show(msg, 'Tanlandi. «Chat ID ni saqlash» ni bosing.', true);
+            });
+        });
+    });
+
+    document.getElementById('btnTgTest').addEventListener('click', async () => {
+        const msg = document.getElementById('tgMsg');
+        const r = await fetch('/api/telegram/test', { method: 'POST' });
+        const j = await r.json();
+        if (j.ok === true) show(msg, 'Yuborildi.', true);
+        else show(msg, j.error || ('HTTP ' + r.status), false);
+    });
+
+    document.getElementById('btnTgSummary').addEventListener('click', async () => {
+        const msg = document.getElementById('tgMsg');
+        const r = await fetch('/api/telegram/send-summary', { method: 'POST' });
+        const j = await r.json();
+        if (j.ok === true) show(msg, 'Kunlik xulosa yuborildi.', true);
+        else show(msg, j.error || ('HTTP ' + r.status), false);
+    });
+</script>
+{% endblock %}
