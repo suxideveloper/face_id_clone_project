@@ -8,7 +8,11 @@ Group=www-data
 WorkingDirectory=/home/suhrob/faceid/face_id_clone_project
 Environment="PATH=/home/suhrob/faceid/face_id_clone_project/venv/bin"
 Environment="PYTHONUNBUFFERED=1"
+Environment="OPENBLAS_CORETYPE=NEHALEM"
+ExecStartPre=-/usr/bin/fuser -k 8080/tcp
 ExecStart=/home/suhrob/faceid/face_id_clone_project/venv/bin/python main.py
+Restart=always
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
