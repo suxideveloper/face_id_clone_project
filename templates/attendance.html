@@ -10,38 +10,18 @@
         style="flex: 2; min-width: 200px;">
     <select id="deptFilter" style="min-width: 150px;">
         <option value="">Barcha bo'limlar</option>
-        <option value="Rahbariyat">Rahbariyat</option>
-        <option value="Buxgalteriya">Buxgalteriya</option>
-        <option value="HR">Xodimlar bilan ishlash bo'limi</option>
-        <option value="mutaxassislar">Mutaxassislar</option>
-        <option value="biometrik tizimlar labaratoriyasi">Biometrik tizimlar labaratoriyasi</option>
-        <option value="Intelektual dastury tizimlar qo'shma labaratoriyasi">Intelektual dastury tizimlar qo'shma
-            labaratoriyasi</option>
-        <option value="Timsollarni tanib olish labaratoriyasi">Timsollarni tanib olish labaratoriyasi</option>
-        <option value="tabiy tilni qayta ishlash labaratoriyasi">Tabiiy tilni qayta ishlash labaratoriyasi</option>
-        <option value="Murakkab tizimlarni modellashtirish labaratoriyasi">Murakkab tizimlarni modellashtirish
-            labaratoriyasi</option>
-        <option value="Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi">Sun'iy intelekt va mashinaviy o'qitish
-            labaratoriyasi</option>
-        <option value="Aqilli tizimlar va buyumlar interneti labaratoriyasi">Aqilli tizimlar va buyumlar interneti
-            labaratoriyasi</option>
-        <option value="Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi">Texnik tizimlarni
-            boshqarish va raqamli loyhalash labaratoriyasi</option>
-        <option value="Dasturiy mahsulotlarni ishlab chiqsh bo'limi">Dasturiy mahsulotlarni ishlab chiqsh bo'limi
-        </option>
-        <option value="Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi">Dasturiy mahsulotlarni sinovdan o'tkazish
-            bo'limi</option>
-        <option value="Dasturiy mahsulotlarni joriy etish bo'limi">Dasturiy mahsulotlarni joriy etish bo'limi</option>
-        <option value="AKT startuplarni qo'llab quvvatlash bo'limi">AKT startuplarni qo'llab quvvatlash bo'limi</option>
-        <option value="Patentlash va tijoratlashtirish bo'limi">Patentlash va tijoratlashtirish bo'limi</option>
-        <option value="Umumiy bo'lim">Umumiy bo'lim</option>
+        {% for dept in departments %}
+        <option value="{{ dept.name }}">{{ dept.name }}</option>
+        {% endfor %}
     </select>
     <input type="date" id="startDateFilter" title="Start Date">
     <span style="color: var(--text-light);">dan</span>
     <input type="date" id="endDateFilter" title="End Date">
 
     <button id="resetFilters" class="btn btn-secondary">Tozalash</button>
-    <button type="button" id="exportExcelBtn" class="btn btn-primary" title="Joriy sana filtrlari bo'yicha Excel">Excel yuklash</button>
+    <button type="button" id="btn15Days" class="btn btn-secondary" title="Oxirgi 15 kun">15 Kun</button>
+    <button type="button" id="btn1Month" class="btn btn-secondary" title="Oxirgi 1 oy">1 Oy</button>
+    <button type="button" id="exportExcelBtn" class="btn btn-primary" title="Joriy sana filtrlari bo'yicha Excel" style="margin-left: auto;">📥 Excel yuklash</button>
 </div>
 
 <div class="table-container">
@@ -63,6 +43,10 @@
             <!-- Rows populated by JS -->
         </tbody>
     </table>
+</div>
+
+<!-- Pagination -->
+<div id="paginationContainer" style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:18px; flex-wrap:wrap;">
 </div>
 
 <!-- Snapshot Modal -->
@@ -164,10 +148,49 @@
     .user-link:hover {
         text-decoration: underline;
     }
+    /* Pagination */
+    .pagination-btn {
+        min-width: 38px;
+        height: 38px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-dark);
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 10px;
+    }
+    .pagination-btn:hover {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    .pagination-btn.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+    }
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .pagination-info {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin: 0 8px;
+    }
 </style>
 
 <script>
     let allRecords = [];
+    let currentPage = 1;
+    const RECORDS_PER_PAGE = 15;
 
     async function loadAttendance() {
         const startDate = document.getElementById('startDateFilter').value;
@@ -182,6 +205,7 @@
             const response = await fetch(url);
             if (!response.ok) throw new Error('Failed to fetch data');
             allRecords = await response.json();
+            currentPage = 1;
             renderTable();
         } catch (error) {
             console.error('Error loading attendance:', error);
@@ -214,6 +238,87 @@
         modalImg.src = src;
     }
 
+    function goToPage(page) {
+        currentPage = page;
+        renderTable();
+        // Scroll to top of table
+        document.querySelector('.table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderPagination(totalItems) {
+        const container = document.getElementById('paginationContainer');
+        const totalPages = Math.ceil(totalItems / RECORDS_PER_PAGE);
+        container.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Prev button
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'pagination-btn';
+        prevBtn.innerHTML = '‹';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => goToPage(currentPage - 1);
+        container.appendChild(prevBtn);
+
+        // Page buttons
+        const maxVisible = 5;
+        let startP = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endP = Math.min(totalPages, startP + maxVisible - 1);
+        if (endP - startP < maxVisible - 1) startP = Math.max(1, endP - maxVisible + 1);
+
+        if (startP > 1) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = '1';
+            b.onclick = () => goToPage(1);
+            container.appendChild(b);
+            if (startP > 2) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+        }
+
+        for (let i = startP; i <= endP; i++) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn' + (i === currentPage ? ' active' : '');
+            b.textContent = i;
+            b.onclick = () => goToPage(i);
+            container.appendChild(b);
+        }
+
+        if (endP < totalPages) {
+            if (endP < totalPages - 1) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = totalPages;
+            b.onclick = () => goToPage(totalPages);
+            container.appendChild(b);
+        }
+
+        // Next button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'pagination-btn';
+        nextBtn.innerHTML = '›';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => goToPage(currentPage + 1);
+        container.appendChild(nextBtn);
+
+        // Info text
+        const info = document.createElement('span');
+        info.className = 'pagination-info';
+        const from = (currentPage - 1) * RECORDS_PER_PAGE + 1;
+        const to = Math.min(currentPage * RECORDS_PER_PAGE, totalItems);
+        info.textContent = `${from}-${to} / ${totalItems}`;
+        container.appendChild(info);
+    }
+
     function renderTable() {
         const tbody = document.getElementById('attendanceTableBody');
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
@@ -231,10 +336,17 @@
 
         if (filtered.length === 0) {
             tbody.innerHTML = '<tr><td colspan="9" class="text-center" style="padding: 40px; color: var(--text-light);">No records found</td></tr>';
+            document.getElementById('paginationContainer').innerHTML = '';
             return;
         }
 
-        filtered.forEach(record => {
+        // Pagination slice
+        const totalPages = Math.ceil(filtered.length / RECORDS_PER_PAGE);
+        if (currentPage > totalPages) currentPage = totalPages;
+        const startIdx = (currentPage - 1) * RECORDS_PER_PAGE;
+        const pageRecords = filtered.slice(startIdx, startIdx + RECORDS_PER_PAGE);
+
+        pageRecords.forEach(record => {
             const getSnapshotUrl = (path) => {
                 if (!path) return null;
                 const filename = path.split('/').pop();
@@ -277,6 +389,8 @@
             `;
             tbody.appendChild(tr);
         });
+
+        renderPagination(filtered.length);
     }
 
     // Modal Events
@@ -288,8 +402,8 @@
     };
 
     // Event Listeners
-    document.getElementById('searchInput').addEventListener('input', renderTable);
-    document.getElementById('deptFilter').addEventListener('change', renderTable);
+    document.getElementById('searchInput').addEventListener('input', () => { currentPage = 1; renderTable(); });
+    document.getElementById('deptFilter').addEventListener('change', () => { currentPage = 1; renderTable(); });
     document.getElementById('startDateFilter').addEventListener('change', loadAttendance);
     document.getElementById('endDateFilter').addEventListener('change', loadAttendance);
     document.getElementById('resetFilters').addEventListener('click', () => {
@@ -306,6 +420,30 @@
         const day = String(d.getDate()).padStart(2, '0');
         return `${y}-${m}-${day}`;
     }
+
+    document.getElementById('btn15Days').addEventListener('click', () => {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        
+        let end = new Date(today);
+        if (today.getDate() > 15) {
+            end = new Date(today.getFullYear(), today.getMonth(), 15);
+        }
+        
+        document.getElementById('startDateFilter').value = toISODate(start);
+        document.getElementById('endDateFilter').value = toISODate(end);
+        loadAttendance();
+    });
+
+    document.getElementById('btn1Month').addEventListener('click', () => {
+        const today = new Date();
+        const start = new Date(today.getFullYear(), today.getMonth(), 1);
+        const end = new Date(today);
+        
+        document.getElementById('startDateFilter').value = toISODate(start);
+        document.getElementById('endDateFilter').value = toISODate(end);
+        loadAttendance();
+    });
 
 
     document.getElementById('exportExcelBtn').addEventListener('click', () => {

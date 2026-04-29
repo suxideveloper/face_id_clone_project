@@ -1,34 +1,11 @@
 import json
-import os
 from datetime import datetime
 from typing import Any, Optional
 
-from app.core.config import settings
+from app.core.database import SessionLocal
+from app.core.models import AuditLogEntry
 
 MAX_ENTRIES = 800
-
-
-def _path():
-    return os.path.join(settings.DATA_DIR, "audit_log.json")
-
-
-def _load() -> list:
-    p = _path()
-    if not os.path.exists(p):
-        return []
-    try:
-        with open(p, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        return data if isinstance(data, list) else []
-    except Exception as e:
-        print(f"audit_log load error: {e}")
-        return []
-
-
-def _save(entries: list) -> None:
-    os.makedirs(settings.DATA_DIR, exist_ok=True)
-    with open(_path(), "w", encoding="utf-8") as f:
-        json.dump(entries, f, indent=2, ensure_ascii=False, default=str)
 
 
 def append_entry(
@@ -36,17 +13,28 @@ def append_entry(
     actor: str,
     detail: Optional[dict[str, Any]] = None,
 ) -> None:
-    entries = _load()
-    entry = {
-        "ts": datetime.now().isoformat(timespec="seconds"),
-        "actor": actor or "noma'lum",
-        "action": action,
-        "detail": detail or {},
-    }
-    entries.append(entry)
-    if len(entries) > MAX_ENTRIES:
-        entries = entries[-MAX_ENTRIES:]
-    _save(entries)
+    with SessionLocal() as db:
+        entry = AuditLogEntry(
+            timestamp=datetime.now().isoformat(timespec="seconds"),
+            admin_user=actor or "noma'lum",
+            action=action,
+            details=json.dumps(detail or {}, ensure_ascii=False, default=str),
+        )
+        db.add(entry)
+        db.commit()
+
+        # Trim to MAX_ENTRIES (keep the newest rows)
+        total = db.query(AuditLogEntry).count()
+        if total > MAX_ENTRIES:
+            excess = total - MAX_ENTRIES
+            oldest_ids = (
+                db.query(AuditLogEntry.id)
+                .order_by(AuditLogEntry.id.asc())
+                .limit(excess)
+                .subquery()
+            )
+            db.query(AuditLogEntry).filter(AuditLogEntry.id.in_(oldest_ids)).delete(synchronize_session=False)
+            db.commit()
 
 
 def log_attendance_delete(
@@ -67,5 +55,25 @@ def log_attendance_delete(
 
 
 def get_recent(limit: int = 200) -> list:
-    entries = _load()
-    return list(reversed(entries[-limit:]))
+    with SessionLocal() as db:
+        rows = (
+            db.query(AuditLogEntry)
+            .order_by(AuditLogEntry.id.desc())
+            .limit(limit)
+            .all()
+        )
+        result = []
+        for r in rows:
+            detail = r.details
+            if isinstance(detail, str):
+                try:
+                    detail = json.loads(detail)
+                except Exception:
+                    pass
+            result.append({
+                "ts": r.timestamp,
+                "actor": r.admin_user,
+                "action": r.action,
+                "detail": detail,
+            })
+        return result

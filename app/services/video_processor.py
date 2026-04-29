@@ -14,6 +14,10 @@ from app.services.detector import detector
 from app.services.recognizer import recognizer
 from app.services.tracker import Tracker
 
+# Face quality filter constants
+MIN_FACE_SIZE = 80    # pixels — ignore faces smaller than 80x80
+MIN_CONFIDENCE = 0.65  # YOLO confidence threshold
+
 
 class VideoProcessor:
     """Processes frames from a single browser session."""
@@ -25,6 +29,7 @@ class VideoProcessor:
         self.visual_debounce = {}
         self.DEBOUNCE_SECONDS = 30
         self.VISUAL_DEBOUNCE_SECONDS = 3
+        self.pending_snapshots = {} # {tid: frame_copy}
 
     def decode_frame(self, frame_bytes: bytes) -> np.ndarray:
         """Decode JPEG bytes to OpenCV BGR frame."""
@@ -66,17 +71,27 @@ class VideoProcessor:
 
         # Detect faces
         try:
-            print("LOG: Starting Face Detection (YOLO)...")
             detections = detector.detect(frame)
-            print(f"LOG: Finished Face Detection. Found {len(detections)} faces.")
-            if len(detections) > 0:
-                print(f"DEBUG: Frame {w}x{h}, Faces Detected: {len(detections)}")
         except Exception as e:
             print(f"ERROR: Face detection failed (YOLO): {e}")
             return {"faces": [], "error": str(e)}
 
-        bbox_list = [det[0] for det in detections]
+        # ── Face quality filter ──
+        # Skip faces that are too small or have low detection confidence
+        bbox_list = []
+        for det in detections:
+            bbox, conf = det
+            x1d, y1d, x2d, y2d = bbox
+            face_w = x2d - x1d
+            face_h = y2d - y1d
+            if face_w >= MIN_FACE_SIZE and face_h >= MIN_FACE_SIZE and conf >= MIN_CONFIDENCE:
+                bbox_list.append(bbox)
+
         tracked_faces = self.tracker.update(bbox_list)
+
+        # Cleanup old snapshots
+        active_tids = set(f["id"] for f in tracked_faces)
+        self.pending_snapshots = {k: v for k, v in self.pending_snapshots.items() if k in active_tids}
 
         results = []
         for face in tracked_faces:
@@ -84,42 +99,54 @@ class VideoProcessor:
             x1, y1, x2, y2 = face["bbox"]
             name = face["name"]
             needs_reverify = face.get("needs_reverify", False)
+            is_confirmed = face.get("is_confirmed", False)
 
             # Recognition: if name not cached OR needs re-verification
             if name is None or needs_reverify:
                 try:
-                    print(f"LOG: Starting Recognition for ID {tid} (Dlib)...")
                     name = recognizer.verify(frame, (x1, y1, x2, y2))
                     self.tracker.set_name(tid, name)
-                    print(f"DEBUG: Recognized face ID {tid} as: {name}")
+                    # Re-read confirmation status after voting
+                    is_confirmed = self.tracker.tracks.get(tid, {}).get("confirmed", False)
+                    
+                    # Cache the frame on the first successful vote
+                    pending_votes = self.tracker.tracks.get(tid, {}).get("pending_votes", 0)
+                    if pending_votes == 1 and name != "Unknown":
+                        self.pending_snapshots[tid] = frame.copy()
+                        
                 except Exception as e:
                     print(f"ERROR: Recognition failed for ID {tid}: {e}")
                     name = "Unknown"
                     self.tracker.set_name(tid, name)
 
-            # Attendance logging & Visual Feedback
+            # ── Attendance logging & Visual Feedback ──
+            # CRITICAL: Only log to DB when identity is CONFIRMED (multi-frame voting passed)
             if name:
                 current_time = time.time()
                 last_db = self.attendance_debounce.get(name, 0)
                 last_visual = self.visual_debounce.get(name, 0)
 
                 if name != "Unknown":
-                    should_log_db = (current_time - last_db >= self.DEBOUNCE_SECONDS)
-                    should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
+                    # Only log attendance for CONFIRMED identities
+                    if is_confirmed:
+                        should_log_db = (current_time - last_db >= self.DEBOUNCE_SECONDS)
+                        should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
 
-                    if should_show_visual:
-                        self.visual_debounce[name] = current_time
-                        if should_log_db:
-                            self.attendance_debounce[name] = current_time
+                        if should_show_visual:
+                            self.visual_debounce[name] = current_time
+                            if should_log_db:
+                                self.attendance_debounce[name] = current_time
 
-                        try:
-                            attendance_queue.put_nowait({
-                                "worker_id": name,
-                                "frame": frame.copy(),
-                                "log_db": should_log_db
-                            })
-                        except asyncio.QueueFull:
-                            pass
+                            try:
+                                snapshot = self.pending_snapshots.get(tid, frame).copy()
+                                attendance_queue.put_nowait({
+                                    "worker_id": name,
+                                    "frame": snapshot,
+                                    "log_db": should_log_db
+                                })
+                            except asyncio.QueueFull:
+                                pass
+                    # else: not confirmed yet — do NOT log to DB
                 else:
                     should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
                     if should_show_visual:
@@ -133,15 +160,20 @@ class VideoProcessor:
                         except asyncio.QueueFull:
                             pass
 
-            # Build result for this face
+            # ── Build result for this face ──
+            # 3 states: Confirmed (green), Verifying (yellow), Unknown (red)
             face_result = {
                 "id": tid,
                 "bbox": [int(x1), int(y1), int(x2), int(y2)],
                 "name": name or "Unknown",
+                "is_confirmed": is_confirmed,
             }
-            if name and name != "Unknown":
+            if name and name != "Unknown" and is_confirmed:
                 face_result["color"] = "green"
                 face_result["label"] = f"ID:{tid} | {name}"
+            elif name and name != "Unknown" and not is_confirmed:
+                face_result["color"] = "orange"
+                face_result["label"] = f"Verifying: {name}..."
             else:
                 face_result["color"] = "red"
                 face_result["label"] = "Unknown"

@@ -43,6 +43,7 @@
 
         /* Dark theme (applied via JS to persist user preference) */
         html[data-theme="dark"] {
+            color-scheme: dark;
             --text-dark: #e5e7eb;
             --text-medium: #cbd5e1;
             --text-light: #94a3b8;
@@ -62,6 +63,10 @@
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+        }
+
+        :root {
+            color-scheme: light;
         }
 
         body {
@@ -780,6 +785,9 @@
                 const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const theme = stored || (prefersDark ? 'dark' : 'light');
                 document.documentElement.setAttribute('data-theme', theme);
+                // Sync color-scheme meta tag
+                const csMeta = document.querySelector('meta[name="color-scheme"]');
+                if (csMeta) csMeta.setAttribute('content', theme);
             } catch (e) {
                 // If localStorage is blocked, fallback to light.
                 document.documentElement.setAttribute('data-theme', 'light');
@@ -798,7 +806,9 @@
                 <li><a href="/admin">Boshqaruv paneli</a></li>
                 <li><a href="/users">Xodimlar</a></li>
                 <li><a href="/attendance">Davomat</a></li>
-
+                <li><a href="/daily_report">Kunlik hisobot</a></li>
+                <li><a href="/admin/departments">Bo'limlar</a></li>
+                <li><a href="/register">Ro'yxatdan o'tkazish</a></li>
                 <li><a href="/admin/audit">Audit</a></li>
                 <li>
                     <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark mode">
@@ -852,6 +862,9 @@
             btn.addEventListener('click', function () {
                 const next = getTheme() === 'dark' ? 'light' : 'dark';
                 document.documentElement.setAttribute('data-theme', next);
+                // Sync color-scheme meta tag
+                const csMeta = document.querySelector('meta[name="color-scheme"]');
+                if (csMeta) csMeta.setAttribute('content', next);
                 try { localStorage.setItem('theme', next); } catch (e) { }
                 syncUI(next);
             });

@@ -1,96 +1,51 @@
 import face_recognition
 import os
-import pickle
 import numpy as np
 import cv2
+from sqlalchemy import text
 from app.core.config import settings
+from app.core.database import SessionLocal
+from app.core.models import FaceEncoding, User
 from app.services.detector import detector  # Import YOLO detector
+
 
 class FaceRecognizer:
     def __init__(self):
-        # Store multiple encodings per user for better accuracy
-        self.user_encodings = {}  # {name: [encoding1, encoding2, ...]}
-        self.known_face_encodings = []  # Flat list for backward compatibility
-        self.known_face_names = []
-        self.encodings_path = os.path.join(settings.DATA_DIR, "encodings.pkl")
-        self.tolerance = 0.45  # Strictor tolerance to reduce false positives
-        self.load_encodings()
+        self.tolerance = 0.42  # Tightened from 0.45; multi-frame voting handles the rest
+        self.margin_threshold = 0.06  # Min gap between best and second-best different-user match
 
-    def load_encodings(self):
-        if os.path.exists(self.encodings_path):
-            try:
-                with open(self.encodings_path, 'rb') as f:
-                    data = pickle.load(f)
-                    
-                    # Support new format (multi-encoding) and old format
-                    if 'user_encodings' in data:
-                        self.user_encodings = data['user_encodings']
-                        self._rebuild_flat_lists()
-                    else:
-                        # Legacy format - convert to new format
-                        self.known_face_encodings = data.get('encodings', [])
-                        self.known_face_names = data.get('names', [])
-                        self._migrate_to_multi_encoding()
-            except Exception as e:
-                print(f"Error loading encodings: {e}")
-                self.user_encodings = {}
-                self.known_face_encodings = []
-                self.known_face_names = []
-        else:
-            self.user_encodings = {}
-            self.known_face_encodings = []
-            self.known_face_names = []
-    
-    def _migrate_to_multi_encoding(self):
-        """Convert old single-encoding format to multi-encoding format"""
-        for i, name in enumerate(self.known_face_names):
-            if name not in self.user_encodings:
-                self.user_encodings[name] = []
-            self.user_encodings[name].append(self.known_face_encodings[i])
-        self.save_encodings()
-        print("Migrated to multi-encoding format")
-    
-    def _rebuild_flat_lists(self):
-        """Rebuild flat lists from user_encodings for compatibility"""
-        self.known_face_encodings = []
-        self.known_face_names = []
-        for name, encodings in self.user_encodings.items():
-            for enc in encodings:
-                self.known_face_encodings.append(enc)
-                self.known_face_names.append(name)
-
-    def save_encodings(self):
-        data = {
-            "user_encodings": self.user_encodings,
-            # Also save flat lists for backward compatibility
-            "encodings": self.known_face_encodings,
-            "names": self.known_face_names
-        }
-        with open(self.encodings_path, 'wb') as f:
-            pickle.dump(data, f)
+    @property
+    def user_encodings(self):
+        """Property for backward compatibility – returns {name: [encoding, ...]} from DB."""
+        with SessionLocal() as db:
+            rows = db.query(FaceEncoding).all()
+            result = {}
+            for r in rows:
+                if r.username not in result:
+                    result[r.username] = []
+                result[r.username].append(np.array(r.embedding))
+            return result
 
     def register_user(self, name, images):
         """
         Register a user with list of images (BGR numpy arrays).
         Stores ALL encodings (not averaged) for better recognition.
         """
-        user_encodings = []
+        new_encodings = []
         user_dir = os.path.join(settings.IMAGES_DIR, name)
         os.makedirs(user_dir, exist_ok=True)
-        
+
         saved_count = 0
         for i, img in enumerate(images):
             rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            
+
             # Try standard face_recognition detection (HOG/CNN)
             boxes = face_recognition.face_locations(rgb_img)
-            
+
             # Fallback to YOLO if standard method fails
             if not boxes:
-                # print(f"Warning: Standard detection failed for {name} image {i}, trying YOLO...")
                 detections = detector.detect(img)
                 if detections:
-                    # Use the first/best detection
                     # YOLO returns (x1, y1, x2, y2), face_recognition needs (top, right, bottom, left)
                     x1, y1, x2, y2 = detections[0][0]
                     boxes = [(y1, x2, y2, x1)]
@@ -99,8 +54,8 @@ class FaceRecognizer:
                 try:
                     # Compute encoding
                     encoding = face_recognition.face_encodings(rgb_img, boxes)[0]
-                    user_encodings.append(encoding)
-                    
+                    new_encodings.append(encoding)
+
                     # Save image
                     file_path = os.path.join(user_dir, f"{name}_{i}.jpg")
                     cv2.imwrite(file_path, img)
@@ -109,24 +64,29 @@ class FaceRecognizer:
                     print(f"Error encoding image {i} for {name}: {e}")
             else:
                 print(f"Error: No face found in image {i} for {name} even with fallback.")
-        
-        if user_encodings:
-            # Store ALL encodings for this user (not averaged)
-            if name not in self.user_encodings:
-                self.user_encodings[name] = []
-            self.user_encodings[name].extend(user_encodings)
-            
-            # Update flat lists
-            self._rebuild_flat_lists()
-            self.save_encodings()
-            print(f"Registered {name} with {saved_count} encodings (total: {len(self.user_encodings[name])})")
+
+        if new_encodings:
+            # Store ALL encodings into PostgreSQL with pgvector
+            with SessionLocal() as db:
+                for enc in new_encodings:
+                    fe = FaceEncoding(
+                        username=name,
+                        embedding=enc.tolist(),
+                    )
+                    db.add(fe)
+                db.commit()
+
+            total = len(new_encodings)
+            print(f"Registered {name} with {saved_count} encodings (new: {total})")
             return True
         return False
 
     def verify(self, frame, face_location=None):
         """
-        Verify face in frame using voting system.
-        Checks against ALL encodings per user and uses best match.
+        Verify face in frame using pgvector nearest-neighbour search.
+        Uses L2 distance operator (<->) for fast similarity lookup.
+        Includes top-2 margin check: if the best match and second-best
+        match (from a DIFFERENT user) are too close, returns Unknown.
         """
         if frame is None:
             return "Unknown"
@@ -136,7 +96,7 @@ class FaceRecognizer:
             frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
         elif frame.shape[2] == 4:
             frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-        
+
         if frame.dtype != np.uint8:
             frame = frame.astype(np.uint8)
 
@@ -158,27 +118,58 @@ class FaceRecognizer:
             return "Unknown"
 
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
-        
+
         if not face_encodings:
             return "Unknown"
-            
-        encoding = face_encodings[0]
-        
-        if not self.known_face_encodings:
-            return "Unknown"
 
-        # Vectorized comparison using the flat list (MUCH FASTER)
-        # Calculate distance to ALL known encodings at once
-        distances = face_recognition.face_distance(self.known_face_encodings, encoding)
-        best_match_index = np.argmin(distances)
-        
-        if distances[best_match_index] < self.tolerance:
-            return self.known_face_names[best_match_index]
-            
-        return "Unknown"
-    
+        encoding = face_encodings[0]
+
+        # ── pgvector nearest-neighbour query ──────────────────────────
+        # Fetch top 5 results so we can check margin between different users
+        vec_str = "[" + ",".join(str(float(v)) for v in encoding) + "]"
+
+        with SessionLocal() as db:
+            results = db.execute(
+                text(
+                    "SELECT username, embedding <-> :vec AS distance "
+                    "FROM face_encodings "
+                    "ORDER BY embedding <-> :vec "
+                    "LIMIT 5"
+                ),
+                {"vec": vec_str},
+            ).fetchall()
+
+            if not results:
+                return "Unknown"
+
+            best = results[0]
+
+            # Check 1: Is the best match within tolerance?
+            if best.distance >= self.tolerance:
+                return "Unknown"
+
+            # Check 2: Top-2 margin — find the closest match from a DIFFERENT user
+            for r in results[1:]:
+                if r.username != best.username:
+                    margin = r.distance - best.distance
+                    if margin < self.margin_threshold:
+                        # Too ambiguous — the two users are too similar
+                        return "Unknown"
+                    break  # Only need to check the first different user
+
+            return best.username
+
+    def delete_user_encodings(self, name: str):
+        """Delete all face encodings for a user from the database."""
+        with SessionLocal() as db:
+            db.query(FaceEncoding).filter(FaceEncoding.username == name).delete()
+            db.commit()
+
     def get_all_user_names(self):
         """Get list of all registered user names"""
-        return list(self.user_encodings.keys())
+        with SessionLocal() as db:
+            rows = db.query(FaceEncoding.username).distinct().all()
+            return [r[0] for r in rows]
+
 
 recognizer = FaceRecognizer()

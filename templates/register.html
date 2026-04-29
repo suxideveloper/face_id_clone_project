@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block navbar %}
-<nav class="navbar" style="background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+<nav class="navbar" style="box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
     <div class="nav-container" style="justify-content: space-between;">
         <a href="/" class="nav-brand">
             <img src="/static/images/airi-logo_uz.png" alt="Logo" style="height: 45px;">
@@ -90,49 +90,19 @@
 
                 <div class="form-group">
                     <label for="phone">Telefon raqam</label>
-                    <input type="tel" id="phone" name="phone" placeholder="Telefon raqam" disabled>
+                    <div class="phone-input-wrapper">
+                        <span class="phone-prefix">+998</span>
+                        <input type="tel" id="phone" name="phone" placeholder="__ ___-__-__" maxlength="12" disabled>
+                    </div>
                 </div>
 
                 <div class="form-group">
                     <label for="department">Bo'lim</label>
                     <select id="department" name="department" disabled>
                         <option value="">Bo'limni tanlang</option>
-                        <option value="Rahbariyat">Rahbariyat</option>
-                        <option value="Buxgalteriya">Buxgalteriya</option>
-                        <option value="HR">Xodimlar bilan ishlash bo'limi</option>
-                        <option value="Mutaxassislar">Mutaxassislar</option>
-                        <option value="Biometrik tizimlar labaratoriyasi">Biometrik tizimlar labaratoriyasi</option>
-                        <option value="Intelektual dastury tizimlar qo'shma labaratoriyasi">Intelektual dastury tizimlar
-                            qo'shma
-                            labaratoriyasi</option>
-                        <option value="Timsollarni tanib olish labaratoriyasi">Timsollarni tanib olish labaratoriyasi
-                        </option>
-                        <option value="tabiy tilni qayta ishlash labaratoriyasi">Tabiiy tilni qayta ishlash
-                            labaratoriyasi</option>
-                        <option value="Murakkab tizimlarni modellashtirish labaratoriyasi">Murakkab tizimlarni
-                            modellashtirish
-                            labaratoriyasi</option>
-                        <option value="Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi">Sun'iy intelekt va
-                            mashinaviy o'qitish
-                            labaratoriyasi</option>
-                        <option value="Aqilli tizimlar va buyumlar interneti labaratoriyasi">Aqilli tizimlar va buyumlar
-                            interneti
-                            labaratoriyasi</option>
-                        <option value="Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi">Texnik
-                            tizimlarni
-                            boshqarish va raqamli loyhalash labaratoriyasi</option>
-                        <option value="Dasturiy mahsulotlarni ishlab chiqsh bo'limi">Dasturiy mahsulotlarni ishlab
-                            chiqsh bo'limi</option>
-                        <option value="Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi">Dasturiy mahsulotlarni
-                            sinovdan o'tkazish
-                            bo'limi</option>
-                        <option value="Dasturiy mahsulotlarni joriy etish bo'limi">Dasturiy mahsulotlarni joriy etish
-                            bo'limi</option>
-                        <option value="AKT startuplarni qo'llab quvvatlash bo'limi">AKT startuplarni qo'llab quvvatlash
-                            bo'limi</option>
-                        <option value="Patentlash va tijoratlashtirish bo'limi">Patentlash va tijor atlashtirish bo'limi
-                        </option>
-                        <option value="Umumiy bo'lim">Umumiy bo'lim</option>
+                        {% for dept in departments %}
+                        <option value="{{ dept.name }}">{{ dept.name }}</option>
+                        {% endfor %}
                     </select>
                 </div>
 
@@ -282,10 +252,118 @@
         cursor: not-allowed;
     }
 
-    .locked-input {
+    /* ===== LOCKED INPUT (Username captured in Step 1) ===== */
+    #registerForm .locked-input {
         background: #dcfce7 !important;
-        color: var(--accent-green) !important;
+        color: #166534 !important;
+        font-weight: 600;
+        border: 1.5px solid #86efac !important;
+        box-shadow: none !important;
+        opacity: 1 !important;
+        color-scheme: light;
+    }
+    html[data-theme="dark"] #registerForm .locked-input {
+        background: #064e3b !important;
+        color: #6ee7b7 !important;
+        border-color: #34d399 !important;
+    }
+
+    /* ===== FORM INPUTS — Light Mode ===== */
+    #registerForm .form-group input:not(.locked-input),
+    #registerForm .form-group select,
+    #registerForm .form-group textarea {
+        background: #ffffff !important;
+        color: #1e293b !important;
+        border: 1.5px solid #c0c7d0 !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06) inset;
+        color-scheme: light;
+    }
+    #registerForm .form-group input:not(.locked-input):focus,
+    #registerForm .form-group select:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+    }
+    #registerForm .form-group input:not(.locked-input):disabled,
+    #registerForm .form-group select:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        background: #f9fafb !important;
+    }
+    #registerForm .form-group input::placeholder {
+        color: #9ca3af !important;
+    }
+
+    /* ===== FORM INPUTS — Dark Mode ===== */
+    html[data-theme="dark"] #registerForm .form-group input:not(.locked-input),
+    html[data-theme="dark"] #registerForm .form-group select,
+    html[data-theme="dark"] #registerForm .form-group textarea {
+        background: #1e3a5f !important;
+        color: #f1f5f9 !important;
+        border-color: #475569 !important;
+        color-scheme: dark;
+    }
+    html[data-theme="dark"] #registerForm .form-group input:not(.locked-input):focus,
+    html[data-theme="dark"] #registerForm .form-group select:focus {
+        border-color: #818cf8 !important;
+        box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.2) !important;
+    }
+    html[data-theme="dark"] #registerForm .form-group input::placeholder {
+        color: #94a3b8 !important;
+    }
+    html[data-theme="dark"] #registerForm .form-group select option {
+        background: #1e3a5f;
+        color: #f1f5f9;
+    }
+
+    /* ===== PHONE INPUT WRAPPER ===== */
+    .phone-input-wrapper {
+        display: flex;
+        align-items: center;
+        border: 1px solid #d1d5db;
+        border-radius: var(--radius-sm);
+        overflow: hidden;
+        transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    html[data-theme="dark"] .phone-input-wrapper {
+        border-color: #475569;
+    }
+    .phone-input-wrapper:focus-within {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    }
+    .phone-prefix {
+        background: linear-gradient(135deg, var(--primary), var(--secondary));
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.95rem;
+        padding: 10px 14px;
+        white-space: nowrap;
+        user-select: none;
+        letter-spacing: 0.5px;
+    }
+    #registerForm .phone-input-wrapper input {
+        border: none !important;
+        border-radius: 0 !important;
+        flex: 1;
+        outline: none !important;
+        font-size: 1rem;
+        letter-spacing: 1.5px;
         font-weight: 500;
+        padding: 10px 12px;
+        background: #ffffff !important;
+        color: #1e293b !important;
+        color-scheme: light;
+    }
+    html[data-theme="dark"] #registerForm .phone-input-wrapper input {
+        background: #1e3a5f !important;
+        color: #f1f5f9 !important;
+        color-scheme: dark;
+    }
+    #registerForm .phone-input-wrapper input:focus {
+        box-shadow: none !important;
+    }
+    #registerForm .phone-input-wrapper input:disabled {
+        opacity: 0.55;
     }
 </style>
 
@@ -539,6 +617,11 @@
         e.preventDefault();
 
         const formData = new FormData(e.target);
+        // Prepend +998 to phone number
+        const rawPhone = formData.get('phone') || '';
+        if (rawPhone.trim()) {
+            formData.set('phone', '+998 ' + rawPhone.trim());
+        }
         const statusDiv = document.getElementById('formStatus');
         const btn = document.getElementById('submitBtn');
 
@@ -571,6 +654,19 @@
             btn.disabled = false;
             btn.textContent = 'Complete Registration';
         }
+    });
+
+    // ========== PHONE FORMATTER ==========
+    document.getElementById('phone').addEventListener('input', function(e) {
+        let digits = this.value.replace(/\D/g, '').slice(0, 9);
+        let formatted = '';
+        for (let i = 0; i < digits.length; i++) {
+            if (i === 2) formatted += ' ';
+            if (i === 5) formatted += '-';
+            if (i === 7) formatted += '-';
+            formatted += digits[i];
+        }
+        this.value = formatted;
     });
 
     // Initialize camera on page load

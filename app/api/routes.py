@@ -15,6 +15,7 @@ from app.core.config import settings
 
 from app.services.tracker import Tracker
 from app.services.user_db import user_db
+from app.services.departments_db import departments_db
 from app.services.attendance_db import attendance_db
 from app.services.websocket_manager import ws_manager
 from app.services.schedule_settings import (
@@ -51,6 +52,7 @@ attendance_debounce = {}
 visual_debounce = {}
 DEBOUNCE_SECONDS = 30  # Only log to DB once per 30 seconds
 VISUAL_DEBOUNCE_SECONDS = 3  # Show visual feedback every 3 seconds
+pending_snapshots = {} # {tid: frame_copy}
 
 # Initialize Tracker
 face_tracker = Tracker()
@@ -197,32 +199,54 @@ def generate_frames(mode="verification"):
         else:
             # TRACKING & RECOGNITION MODE
             try:
-                # Convert detections to bboxes for the tracker
+                # ── Face quality filter ──
+                # Skip faces that are too small or have low detection confidence
+                MIN_FACE_SIZE = 80   # pixels
+                MIN_CONFIDENCE = 0.65
+                
                 bbox_list = []
                 for det in detections:
                     # det is ((x1, y1, x2, y2), conf)
                     bbox, conf = det
-                    bbox_list.append(bbox)
+                    x1d, y1d, x2d, y2d = bbox
+                    face_w = x2d - x1d
+                    face_h = y2d - y1d
+                    if face_w >= MIN_FACE_SIZE and face_h >= MIN_FACE_SIZE and conf >= MIN_CONFIDENCE:
+                        bbox_list.append(bbox)
                 
                 tracked_faces = face_tracker.update(bbox_list)
+                
+                # Cleanup old snapshots
+                global pending_snapshots
+                active_tids = set(f["id"] for f in tracked_faces)
+                pending_snapshots = {k: v for k, v in pending_snapshots.items() if k in active_tids}
                 
                 for face in tracked_faces:
                     tid = face["id"]
                     x1, y1, x2, y2 = face["bbox"]
                     name = face["name"]
                     needs_reverify = face.get("needs_reverify", False)
+                    is_confirmed = face.get("is_confirmed", False)
                     
                     # Recognition: if name not cached OR needs re-verification
                     if name is None or needs_reverify:
                         try:
                             name = recognizer.verify(frame, (x1, y1, x2, y2))
                             face_tracker.set_name(tid, name)
+                            # Re-read confirmation status after voting
+                            is_confirmed = face_tracker.tracks.get(tid, {}).get("confirmed", False)
+                            
+                            # Cache the frame on the first successful vote
+                            pending_votes = face_tracker.tracks.get(tid, {}).get("pending_votes", 0)
+                            if pending_votes == 1 and name != "Unknown":
+                                pending_snapshots[tid] = frame.copy()
+                                
                         except Exception:
                             name = "Unknown"
                             face_tracker.set_name(tid, name)
                     
-                    # Attendance logging & Visual Feedback
-                    # Allow "Unknown" to pass through for visual feedback (red alert)
+                    # ── Attendance logging & Visual Feedback ──
+                    # CRITICAL: Only log to DB when identity is CONFIRMED (multi-frame voting passed)
                     if name:
                         current_time = time.time()
                         last_db = attendance_debounce.get(name, 0)
@@ -230,27 +254,29 @@ def generate_frames(mode="verification"):
                         
                         # Logic for Known Users
                         if name != "Unknown":
-                            should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
-                            should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
-                            
-                            if should_show_visual:
-                                visual_debounce[name] = current_time
-                                if should_log_db:
-                                    attendance_debounce[name] = current_time
+                            # Only log attendance for CONFIRMED identities
+                            if is_confirmed:
+                                should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
+                                should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
                                 
-                                try:
-                                    attendance_queue.put_nowait({
-                                        "worker_id": name,
-                                        "frame": frame.copy(),
-                                        "log_db": should_log_db
-                                    })
-                                except asyncio.QueueFull:
-                                    pass
+                                if should_show_visual:
+                                    visual_debounce[name] = current_time
+                                    if should_log_db:
+                                        attendance_debounce[name] = current_time
+                                    
+                                    try:
+                                        snapshot = pending_snapshots.get(tid, frame).copy()
+                                        attendance_queue.put_nowait({
+                                            "worker_id": name,
+                                            "frame": snapshot,
+                                            "log_db": should_log_db
+                                        })
+                                    except asyncio.QueueFull:
+                                        pass
+                            # else: not confirmed yet — do NOT log to DB
                         
                         # Logic for Unknown Users
                         else:
-                            # For unknown, we don't log to DB, but we want to trigger visual feedback
-                            # Use visual debounce to avoid flooding WebSocket
                             should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
                             
                             if should_show_visual:
@@ -258,23 +284,27 @@ def generate_frames(mode="verification"):
                                 try:
                                     attendance_queue.put_nowait({
                                         "worker_id": "Unknown",
-                                        "frame": frame.copy(), # Frame might be needed if we want to save unknown faces later
+                                        "frame": frame.copy(),
                                         "log_db": False
                                     })
                                 except asyncio.QueueFull:
                                     pass
                     
-                    # Draw Results only if recognized
-                    # Draw Results (Verified = Green, Unknown = Red)
+                    # ── Draw Results ──
+                    # 3 states: Confirmed (green), Verifying (yellow), Unknown (red)
                     if name:
                         if name == "Unknown":
-                            color = (0, 0, 255) # Red
+                            color = (0, 0, 255)  # Red
                             label = "Unknown"
-                            text_color = (255, 255, 255) # White text
-                        else:
-                            color = (0, 255, 0) # Green
+                            text_color = (255, 255, 255)  # White text
+                        elif is_confirmed:
+                            color = (0, 255, 0)  # Green — confirmed
                             label = f"ID:{tid} | {name}"
-                            text_color = (0, 0, 0) # Black text
+                            text_color = (0, 0, 0)  # Black text
+                        else:
+                            color = (0, 200, 255)  # Yellow/Orange — verifying
+                            label = f"Verifying: {name}..."
+                            text_color = (0, 0, 0)  # Black text
 
                         # High-tech corner bounding box
                         t = 2; l = 20
@@ -362,7 +392,7 @@ async def telegram_bot_updates_loop():
             await asyncio.to_thread(process_telegram_updates_long_poll)
         except Exception as e:
             print(f"Telegram bot polling: {e}")
-            await asyncio.sleep(5)
+        await asyncio.sleep(3)  # Give event loop breathing room between polls
 
 
 @router.get("/")
@@ -376,8 +406,8 @@ async def index(request: Request):
         return RedirectResponse(url="/admin", status_code=303)
 
         
-    active_users = len(recognizer.user_encodings)
-    return templates.TemplateResponse("index.html", {
+    active_users = len(recognizer.get_all_user_names())
+    return templates.TemplateResponse(request=request, name="index.html", context= {
         "request": request,
         "active_users_count": active_users,
         "user": user
@@ -385,7 +415,7 @@ async def index(request: Request):
 
 @router.get("/login")
 async def login_page(request: Request, next: str = "/admin"):
-    return templates.TemplateResponse("login.html", {"request": request, "next": next})
+    return templates.TemplateResponse(request=request, name="login.html", context= {"request": request, "next": next})
 
 @router.post("/login")
 async def login_action(request: Request, username: str = Form(...), password: str = Form(...), next: str = "/admin"):
@@ -408,7 +438,7 @@ async def login_action(request: Request, username: str = Form(...), password: st
         response.set_cookie(key="admin_session", value=token, httponly=True)
         return response
     else:
-        return templates.TemplateResponse("login.html", {
+        return templates.TemplateResponse(request=request, name="login.html", context= {
             "request": request, 
             "error": "Invalid username or password"
         })
@@ -486,7 +516,7 @@ async def daily_report(request: Request):
                     "department": user_data.get("department", "Unassigned")
                 })
 
-    return templates.TemplateResponse("daily_report.html", {
+    return templates.TemplateResponse(request=request, name="daily_report.html", context= {
         "request": request,
         "user": user,
         "present_users": present_users,
@@ -713,7 +743,7 @@ async def admin_dashboard(request: Request):
     elif present_count > 0:
         attendance_growth = 100 # moved from 0 to something
         
-    return templates.TemplateResponse("admin.html", {
+    return templates.TemplateResponse(request=request, name="admin.html", context= {
         "request": request, 
         "user": user,
         "total_employees": total_employees,
@@ -1049,7 +1079,7 @@ async def register_page(request: Request):
     # if user.get("role") not in ["admin", "kiosk"]:
     #    return RedirectResponse(url="/", status_code=303)
         
-    return templates.TemplateResponse("register.html", {"request": request})
+    return templates.TemplateResponse(request=request, name="register.html", context= {"request": request, "departments": departments_db.get_all()})
 
 
 @router.get("/api/registration-state")
@@ -1171,16 +1201,16 @@ async def complete_registration(
     images = captured_faces_temp[name]
     
     try:
+        # Create user record FIRST (face_encodings has FK to users)
+        user_db.create_user(name, {
+            "full_name": full_name,
+            "phone": phone,
+            "department": department,
+            "position": position
+        })
+
         success = await asyncio.to_thread(recognizer.register_user, name, images)
         if success:
-            # Save user profile data to database
-            user_db.create_user(name, {
-                "full_name": full_name,
-                "phone": phone,
-                "department": department,
-                "position": position
-            })
-            
             # Reset tracker "Unknown" counters so it re-verifies this person immediately
             face_tracker.reset_unknown_verifications()
             
@@ -1191,6 +1221,8 @@ async def complete_registration(
                 "message": f"User {name} registered successfully!"
             })
         else:
+            # Rollback: delete user if face encoding failed
+            user_db.delete_user(name)
             return JSONResponse(status_code=500, content={
                 "success": False,
                 "message": "Registration failed during processing (Face not clear?)."
@@ -1211,7 +1243,7 @@ async def list_users(request: Request):
         return RedirectResponse(url="/login?next=/users", status_code=303)
         
     # Get UNIQUE user names from recognizer (not flat list which has duplicates)
-    unique_names = list(recognizer.user_encodings.keys())
+    unique_names = recognizer.get_all_user_names()
     # Enrich with user data from database
     users_data = []
     for name in unique_names:
@@ -1223,7 +1255,7 @@ async def list_users(request: Request):
             "department": user_info.get("department", ""),
             "position": user_info.get("position", "")
         })
-    return templates.TemplateResponse("users.html", {"request": request, "users": users_data})
+    return templates.TemplateResponse(request=request, name="users.html", context= {"request": request, "users": users_data, "departments": departments_db.get_all()})
 
 @router.get("/users/{name}")
 async def user_detail(request: Request, name: str):
@@ -1242,7 +1274,7 @@ async def user_detail(request: Request, name: str):
     # Get user profile data
     user_info = user_db.get_user(name) or {}
     
-    return templates.TemplateResponse("user_detail.html", {
+    return templates.TemplateResponse(request=request, name="user_detail.html", context= {
         "request": request, 
         "name": name, 
         "images": sorted(images),
@@ -1259,10 +1291,11 @@ async def edit_user_page(request: Request, name: str):
         return RedirectResponse(url="/", status_code=303)
         
     user_info = user_db.get_user(name) or {}
-    return templates.TemplateResponse("user_edit.html", {
+    return templates.TemplateResponse(request=request, name="user_edit.html", context= {
         "request": request,
         "name": name,
-        "user_info": user_info
+        "user_info": user_info,
+        "departments": departments_db.get_all()
     })
 
 @router.post("/api/users/{name}/update")
@@ -1301,11 +1334,8 @@ async def delete_user(request: Request, name: str):
     if not user or user.get("role") != "admin":
         return JSONResponse(status_code=403, content={"message": "Unauthorized"})
     import shutil
-    # Delete from recognizer (remove ALL encodings for this user)
-    if name in recognizer.user_encodings:
-        del recognizer.user_encodings[name]
-        recognizer._rebuild_flat_lists()  # Rebuild flat lists from user_encodings
-        recognizer.save_encodings()
+    # Delete from recognizer (remove ALL encodings for this user from DB)
+    recognizer.delete_user_encodings(name)
         
     # Remove from active tracker (so they don't stay recognized)
     face_tracker.remove_user(name)
@@ -1622,9 +1652,10 @@ async def attendance_page(request: Request):
     # Sort by check-in time descending
     display_records.sort(key=lambda x: x["check_in_time"] or "", reverse=True)
     
-    return templates.TemplateResponse("attendance.html", {
+    return templates.TemplateResponse(request=request, name="attendance.html", context= {
         "request": request, 
-        "attendance_records": display_records
+        "attendance_records": display_records,
+        "departments": departments_db.get_all()
     })
 
 @router.delete("/api/attendance/{date_str}/{worker_id}")
@@ -1727,68 +1758,187 @@ async def export_attendance_excel(
     start_date: str = None,
     end_date: str = None,
 ):
-    """Barcha davomat yozuvlarini Excel (.xlsx) fayl sifatida yuklab olish."""
+    """Barcha davomat yozuvlarini Matrix (Kalendar) Excel (.xlsx) fayl sifatida yuklab olish."""
     from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from datetime import datetime, date, timedelta
 
+    # Agar sana tanlanmagan bo'lsa, oxirgi 15 kunni olamiz
+    if not start_date or not end_date:
+        today = date.today()
+        if not end_date:
+            end_date = today.isoformat()
+        if not start_date:
+            start_date = (today - timedelta(days=14)).isoformat()
+
+    try:
+        start_dt = date.fromisoformat(start_date)
+        end_dt = date.fromisoformat(end_date)
+    except ValueError:
+        return Response("Noto'g'ri sana formati", status_code=400)
+
+    # Sana oraliqlarini ro'yxatga olamiz
+    date_list = []
+    current = start_dt
+    while current <= end_dt:
+        date_list.append(current)
+        current += timedelta(days=1)
+
+    # 1. Barcha xodimlar va yozuvlarni olamiz
+    users = user_db.get_all_users()
     raw_records = attendance_db.get_all_records(start_date, end_date)
-    rows: list[dict] = []
 
-    for record in raw_records:
-        worker_id = record["worker_id"]
-        user_info = user_db.get_user(worker_id) or {}
-        cin_raw = record.get("check_in_time")
-        cout_raw = record.get("check_out_time")
-        check_in_disp = cin_raw.split("T")[1][:8] if cin_raw else "-"
-        check_out_disp = cout_raw.split("T")[1][:8] if cout_raw else "-"
+    # 2. Yozuvlarni xodim va sana bo'yicha guruhlaymiz: dict[worker_id][date_str] = record
+    user_records = {}
+    for r in raw_records:
+        wid = r["worker_id"]
+        d_str = r.get("date")
+        if not d_str:
+            continue
+        if wid not in user_records:
+            user_records[wid] = {}
+        user_records[wid][d_str] = r
 
-        rows.append({
-            "date": record.get("date", ""),
-            "worker_id": worker_id,
-            "full_name": user_info.get("full_name", worker_id),
-            "department": user_info.get("department", "Unknown"),
-            "position": user_info.get("position", "Unknown"),
-            "check_in": check_in_disp,
-            "check_out": check_out_disp,
-            "working_hours": _format_working_hours(cin_raw, cout_raw),
-        })
-
-    rows.sort(key=lambda r: (r["date"], r["full_name"]))
-
+    # Excel fayl yaratamiz
     wb = Workbook()
     ws = wb.active
-    ws.title = "Davomat"
-    ws.append([
-        "Sana",
-        "Xodim ID",
-        "To'liq ism",
-        "Bo'lim",
-        "Lavozim",
-        "Kelgan vaqti",
-        "Ketgan vaqti",
-        "Ishlangan vaqt",
-    ])
-    for r in rows:
-        ws.append([
-            r["date"],
-            r["worker_id"],
-            r["full_name"],
-            r["department"],
-            r["position"],
-            r["check_in"],
-            r["check_out"],
-            r["working_hours"],
-        ])
+    ws.title = "Oylik Hisobot"
+
+    # Uslublar (Styles)
+    bold_font = Font(bold=True, size=10)
+    title_font = Font(bold=True, size=14)
+    center_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    left_align = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    weekend_fill = PatternFill(start_color="FFDDBB", end_color="FFDDBB", fill_type="solid") # Orange
+    thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+
+    # Sarlavha va logotip uchun qatorlar balandligini to'g'rilash
+    ws.row_dimensions[1].height = 40
+    ws.row_dimensions[2].height = 40
+    ws.row_dimensions[3].height = 30
+
+    # Logotip uchun joy ajratish (ba'zi Excel dasturlari rasmni katakka moslab qisqartirmasligi uchun)
+    ws.merge_cells("A1:E2")
+
+    # Logotip qo'shish (agar mavjud bo'lsa)
+    try:
+        from openpyxl.drawing.image import Image
+        import os
+        logo_path = "static/logo.png" # Logotip shu joyda bo'lishi kerak
+        if os.path.exists(logo_path):
+            img = Image(logo_path)
+            # O'lchamini proporsional va o'rtacha qilish (original: 1024x173)
+            # Factor = ~0.33
+            img.width = 338
+            img.height = 57
+            
+            # Rasmni biroz markazlashtiribroq qo'yish uchun katak o'lchamlari
+            ws.row_dimensions[1].height = 30
+            ws.row_dimensions[2].height = 30
+            ws.add_image(img, 'A1')
+    except Exception as e:
+        print(f"Logotip qo'shishda xatolik: {e}")
+
+    # Sarlavha (3-qatorda)
+    total_cols = 3 + len(date_list)
+    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=total_cols)
+    title_cell = ws.cell(row=3, column=1, value=f"Davomat hisoboti — {start_date} dan {end_date} gacha")
+    title_cell.font = title_font
+    title_cell.alignment = center_align
+
+    # Header qatori (5-qatorda)
+    row = 5
+    # Asosiy ustunlar
+    headers = ["#", "Xodim ID", "To'liq ism"]
+    for i, h in enumerate(headers, 1):
+        c = ws.cell(row=row, column=i, value=h)
+        c.font = bold_font
+        c.fill = header_fill
+        c.alignment = center_align
+        c.border = thin_border
+
+    # Sanalar ustunlari
+    for i, d in enumerate(date_list, 4):
+        # Sana va hafta kuni nomi (masalan: 01.05\nDu)
+        days_uz = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]
+        day_name = days_uz[d.weekday()]
+        day_str = f"{d.strftime('%d.%m')}\n{day_name}"
+        
+        c = ws.cell(row=row, column=i, value=day_str)
+        c.font = bold_font
+        c.alignment = center_align
+        c.border = thin_border
+        
+        # Shanba va Yakshanba - orange
+        if d.weekday() >= 5:
+            c.fill = weekend_fill
+        else:
+            c.fill = header_fill
+
+    row += 1
+
+    # Ma'lumotlar qatori
+    user_idx = 1
+    # Sort users by full name
+    sorted_users = sorted(users.items(), key=lambda item: item[1].get("full_name", item[0]))
+    
+    for wid, uinfo in sorted_users:
+        fname = uinfo.get("full_name", wid)
+        
+        c1 = ws.cell(row=row, column=1, value=user_idx)
+        c2 = ws.cell(row=row, column=2, value=wid)
+        c3 = ws.cell(row=row, column=3, value=fname)
+        
+        for c in (c1, c2, c3):
+            c.border = thin_border
+            c.alignment = center_align if c != c3 else left_align
+            
+        # Har bir sana uchun yozuvlarni to'ldiramiz
+        for i, d in enumerate(date_list, 4):
+            d_str = d.isoformat()
+            c = ws.cell(row=row, column=i)
+            c.border = thin_border
+            c.alignment = center_align
+            
+            if d.weekday() >= 5:
+                c.fill = weekend_fill
+                
+            rec = user_records.get(wid, {}).get(d_str)
+            if rec:
+                cin_raw = rec.get("check_in_time")
+                cout_raw = rec.get("check_out_time")
+                cin_disp = cin_raw.split("T")[1][:5] if cin_raw else "-"
+                cout_disp = cout_raw.split("T")[1][:5] if cout_raw else "-"
+                wh = _format_working_hours(cin_raw, cout_raw)
+                
+                # Agar ishlagan soati "-" bo'lsa faqat kelish-ketish
+                if wh == "-":
+                    text = f"K: {cin_disp}\nC: {cout_disp}"
+                else:
+                    text = f"K: {cin_disp}\nC: {cout_disp}\n🕒 {wh}"
+                
+                c.value = text
+            else:
+                c.value = "" # Kelmagan
+
+        row += 1
+        user_idx += 1
+
+    # Ustunlar va qatorlar o'lchamlarini moslashtirish
+    ws.column_dimensions['B'].width = 15
+    ws.column_dimensions['C'].width = 30
+    for i in range(4, total_cols + 1):
+        col_letter = ws.cell(row=5, column=i).column_letter
+        ws.column_dimensions[col_letter].width = 12
+
+    ws.freeze_panes = "D6" # Scrolling qulay bo'lishi uchun
 
     buf = BytesIO()
     wb.save(buf)
 
-    parts = []
-    if start_date:
-        parts.append(start_date)
-    if end_date:
-        parts.append(end_date)
-    suffix = "_".join(parts) if parts else "barcha"
-    filename = f"davomat_{suffix}.xlsx"
+    suffix = f"{start_date}_{end_date}"
+    filename = f"davomat_hisoboti_{suffix}.xlsx"
 
     return Response(
         content=buf.getvalue(),
@@ -1826,8 +1976,7 @@ async def admin_audit_page(request: Request):
     if not user or user.get("role") != "admin":
         return RedirectResponse(url="/login?next=/admin/audit", status_code=303)
     entries = audit_log.get_recent(300)
-    return templates.TemplateResponse(
-        "admin_audit.html",
+    return templates.TemplateResponse(request=request, name="admin_audit.html", context=
         {"request": request, "user": user, "entries": entries},
     )
 
@@ -1958,3 +2107,58 @@ async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
         return JSONResponse({"ok": False, "error": "chat_id kerak"}, status_code=400)
     save_chat_id_to_file(cid)
     return JSONResponse({"ok": True, "chat_id_saved": True})
+
+
+# ========== DEPARTMENTS ENDPOINTS ==========
+
+@router.get("/admin/departments")
+async def admin_departments_page(request: Request):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/admin/departments", status_code=303)
+    
+    return templates.TemplateResponse(request=request, name="admin_departments.html", context={
+        "request": request,
+        "user": user,
+        "departments": departments_db.get_all()
+    })
+
+@router.post("/api/departments")
+async def api_create_department(request: Request, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Name required"}, status_code=400)
+    
+    new_dept = departments_db.create(name)
+    return JSONResponse({"success": True, "department": new_dept})
+
+@router.put("/api/departments/{dept_id}")
+async def api_update_department(request: Request, dept_id: str, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    
+    name = body.get("name", "").strip()
+    if not name:
+        return JSONResponse({"error": "Name required"}, status_code=400)
+    
+    success = departments_db.update(dept_id, name)
+    if success:
+        return JSONResponse({"success": True})
+    return JSONResponse({"error": "Not found"}, status_code=404)
+
+@router.delete("/api/departments/{dept_id}")
+async def api_delete_department(request: Request, dept_id: str):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    
+    success = departments_db.delete(dept_id)
+    if success:
+        return JSONResponse({"success": True})
+    return JSONResponse({"error": "Not found"}, status_code=404)
+

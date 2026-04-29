@@ -49,7 +49,7 @@ def _tg_api(method: str, params=None) -> dict:
     url = f"https://api.telegram.org/bot{token}/{method}{q}"
     req = urllib.request.Request(url, method="GET")
     try:
-        with urllib.request.urlopen(req, timeout=70) as resp:
+        with urllib.request.urlopen(req, timeout=10) as resp:
             body = resp.read().decode("utf-8", errors="replace")
             return json.loads(body)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as e:
@@ -152,7 +152,7 @@ def process_telegram_updates_long_poll() -> None:
         return
     next_offset = _read_next_offset()
     params = {
-        "timeout": "50",
+        "timeout": "5",
         "limit": "100",
     }
     if next_offset > 0:

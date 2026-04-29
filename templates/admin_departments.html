@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header" style="max-width: 800px; margin: 0 auto 24px auto;">
+    <div>
+        <h1>Bo'limlar</h1>
+        <p style="color: var(--text-light); margin-top: 4px;">Tashkilot bo'limlarini boshqarish</p>
+    </div>
+    <button onclick="openAddModal()" class="btn btn-primary">+ Yangi bo'lim</button>
+</div>
+
+<div class="table-container" style="max-width: 800px; margin: 0 auto;">
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>Bo'lim nomi</th>
+                <th style="width: 200px; text-align: center;">Harakatlar</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for dept in departments %}
+            <tr id="row-{{ dept.id }}">
+                <td class="dept-name">
+                    <a href="/users?dept={{ dept.name }}" style="color: var(--text-dark); text-decoration: none; font-weight: 500; display: block; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-dark)'">
+                        {{ dept.name }}
+                    </a>
+                </td>
+                <td style="text-align: center; display: flex; gap: 8px; justify-content: center;">
+                    <button class="btn-action btn-delete" onclick="openDeleteModal('{{ dept.id }}')">O'chirish</button>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="2" style="text-align: center; padding: 40px; color: var(--text-light);">Hozircha bo'limlar yo‘q.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Add/Edit Modal -->
+<div id="deptModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">Yangi bo'lim</h2>
+        </div>
+        <div class="form-group">
+            <label for="deptName">Bo'lim nomi</label>
+            <input type="text" id="deptName" placeholder="Masalan: HR bo'limi">
+        </div>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel" onclick="closeModal('deptModal')">Bekor qilish</button>
+            <button class="btn-modal btn-primary" onclick="saveDepartment()">Saqlash</button>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Modal -->
+<div id="deleteModal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span class="modal-icon">⚠️</span>
+            <h2>O'chirishni tasdiqlaysizmi?</h2>
+        </div>
+        <div class="modal-body">
+            Ushbu bo'limni ro'yxatdan o'chirishga ishonchingiz komilmi?
+        </div>
+        <div class="modal-actions">
+            <button class="btn-modal btn-cancel" onclick="closeModal('deleteModal')">Yo'q, qaytish</button>
+            <button class="btn-modal btn-confirm-delete" onclick="confirmDelete()">Ha, o'chirish</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentDeptId = null;
+
+    function openAddModal() {
+        currentDeptId = null;
+        document.getElementById('modalTitle').innerText = "Yangi bo'lim";
+        document.getElementById('deptName').value = "";
+        document.getElementById('deptModal').classList.remove('hidden');
+    }
+
+    function openEditModal(id, name) {
+        currentDeptId = id;
+        document.getElementById('modalTitle').innerText = "Bo'limni tahrirlash";
+        document.getElementById('deptName').value = name;
+        document.getElementById('deptModal').classList.remove('hidden');
+    }
+
+    function openDeleteModal(id) {
+        currentDeptId = id;
+        document.getElementById('deleteModal').classList.remove('hidden');
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.add('hidden');
+    }
+
+    async function saveDepartment() {
+        const name = document.getElementById('deptName').value.trim();
+        if (!name) return alert("Bo'lim nomini kiriting");
+
+        const isEdit = currentDeptId !== null;
+        const url = isEdit ? `/api/departments/${currentDeptId}` : `/api/departments`;
+        const method = isEdit ? 'PUT' : 'POST';
+
+        try {
+            const res = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name })
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.error || "Xatolik yuz berdi");
+            }
+        } catch (e) {
+            alert("Ulanishda xatolik: " + e);
+        }
+    }
+
+    async function confirmDelete() {
+        if (!currentDeptId) return;
+        try {
+            const res = await fetch(`/api/departments/${currentDeptId}`, {
+                method: 'DELETE'
+            });
+            const data = await res.json();
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert(data.error || "Xatolik yuz berdi");
+            }
+        } catch (e) {
+            alert("Ulanishda xatolik: " + e);
+        }
+    }
+</script>
+{% endblock %}

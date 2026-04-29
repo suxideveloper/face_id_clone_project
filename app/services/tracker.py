@@ -2,6 +2,8 @@ import numpy as np
 import time
 
 class Tracker:
+    CONFIRM_THRESHOLD = 3  # Need 3 consecutive same-name results to confirm identity
+
     def __init__(self, max_lost=60, iou_threshold=0.4):
         """
         Args:
@@ -9,11 +11,24 @@ class Tracker:
             iou_threshold: Minimum IoU to consider a detection as same track
         """
         self.next_id = 1
-        self.tracks = {}  # {id: {"bbox": (x1,y1,x2,y2), "name": None, "lost": 0, "last_verified": time, "verify_count": 0}}
+        self.tracks = {}  # {id: track_data}
         self.max_lost = max_lost
         self.iou_threshold = iou_threshold
         self.reverify_interval = 1.5  # Re-verify "Unknown" faces much faster (every 1.5s)
         self.unknown_retry_limit = 100  # Keep trying to recognize "Unknown" faces for a long time
+
+    def _new_track_data(self, bbox):
+        """Create fresh track data with voting fields."""
+        return {
+            "bbox": bbox,
+            "name": None,            # Final displayed name (None until confirmed or Unknown)
+            "pending_name": None,     # Name being voted on
+            "pending_votes": 0,       # How many consecutive times this name was returned
+            "confirmed": False,       # Whether the identity has been confirmed
+            "lost": 0,
+            "last_verified": 0,
+            "verify_count": 0,
+        }
 
     def _calculate_iou(self, box1, box2):
         x1, y1, x2, y2 = box1
@@ -34,7 +49,8 @@ class Tracker:
     def update(self, detections):
         """
         detections: list of (x1, y1, x2, y2)
-        returns: list of {"id": id, "bbox": bbox, "name": name, "is_new": bool, "needs_reverify": bool}
+        returns: list of {"id": id, "bbox": bbox, "name": name, "is_new": bool,
+                          "needs_reverify": bool, "is_confirmed": bool}
         """
         current_time = time.time()
         current_detections = []
@@ -59,13 +75,20 @@ class Tracker:
                 self.tracks[track_id]["lost"] = 0
                 used_detections.add(best_det_idx)
                 
-                # Check if we need to re-verify (for Unknown faces)
+                # Determine if re-verification is needed
                 needs_reverify = False
                 name = self.tracks[track_id]["name"]
+                confirmed = self.tracks[track_id].get("confirmed", False)
                 last_verified = self.tracks[track_id].get("last_verified", 0)
                 verify_count = self.tracks[track_id].get("verify_count", 0)
                 
-                if name == "Unknown" and verify_count < self.unknown_retry_limit:
+                # Case 1: Not yet confirmed — keep re-verifying rapidly
+                if not confirmed and name != "Unknown":
+                    if current_time - last_verified > 0.3:  # Re-verify every 0.3s for fast confirmation
+                        needs_reverify = True
+
+                # Case 2: Unknown face — retry periodically
+                elif name == "Unknown" and verify_count < self.unknown_retry_limit:
                     if current_time - last_verified > self.reverify_interval:
                         needs_reverify = True
                 
@@ -74,7 +97,8 @@ class Tracker:
                     "bbox": detections[best_det_idx], 
                     "name": name,
                     "is_new": False,
-                    "needs_reverify": needs_reverify
+                    "needs_reverify": needs_reverify,
+                    "is_confirmed": confirmed,
                 })
             else:
                 # Track lost
@@ -85,19 +109,14 @@ class Tracker:
             if i not in used_detections:
                 new_id = self.next_id
                 self.next_id += 1
-                self.tracks[new_id] = {
-                    "bbox": det, 
-                    "name": None, 
-                    "lost": 0,
-                    "last_verified": 0,
-                    "verify_count": 0
-                }
+                self.tracks[new_id] = self._new_track_data(det)
                 current_detections.append({
                     "id": new_id, 
                     "bbox": det, 
                     "name": None, 
                     "is_new": True,
-                    "needs_reverify": False
+                    "needs_reverify": False,
+                    "is_confirmed": False,
                 })
         
         # 3. Clean up old tracks
@@ -108,16 +127,78 @@ class Tracker:
         return current_detections
 
     def set_name(self, track_id, name):
-        """Set the recognized name for a track"""
-        if track_id in self.tracks:
-            self.tracks[track_id]["name"] = name
-            self.tracks[track_id]["last_verified"] = time.time()
-            self.tracks[track_id]["verify_count"] = self.tracks[track_id].get("verify_count", 0) + 1
+        """
+        Set the recognized name for a track with multi-frame voting.
+        
+        The name is NOT immediately confirmed. It must be returned by the 
+        recognizer CONFIRM_THRESHOLD times consecutively before it becomes
+        confirmed (and safe to log attendance).
+        
+        Returns True if this call caused the identity to become CONFIRMED.
+        """
+        if track_id not in self.tracks:
+            return False
+        
+        track = self.tracks[track_id]
+        track["last_verified"] = time.time()
+        track["verify_count"] = track.get("verify_count", 0) + 1
+        
+        # ── Unknown handling ──
+        if name == "Unknown":
+            # If we already have a pending candidate, DON'T reset it.
+            # Intermittent bad frames shouldn't kill the voting process.
+            if track.get("pending_name") and track.get("pending_votes", 0) > 0:
+                # Keep the pending candidate alive — just skip this frame
+                track["unknown_streak"] = track.get("unknown_streak", 0) + 1
+                # But if too many consecutive Unknowns (5+), give up on the candidate
+                if track["unknown_streak"] >= 5:
+                    track["name"] = "Unknown"
+                    track["pending_name"] = None
+                    track["pending_votes"] = 0
+                    track["confirmed"] = False
+                    track["unknown_streak"] = 0
+                return False
+            else:
+                # No pending candidate — just set Unknown
+                track["name"] = "Unknown"
+                track["pending_name"] = None
+                track["pending_votes"] = 0
+                track["confirmed"] = False
+                track["unknown_streak"] = 0
+                return False
+        
+        # ── Voting logic for known names ──
+        track["unknown_streak"] = 0  # Reset unknown streak on any known result
+        
+        if name == track.get("pending_name"):
+            # Same name as before — increase vote count
+            track["pending_votes"] = track.get("pending_votes", 0) + 1
+        else:
+            # Different name — reset voting
+            track["pending_name"] = name
+            track["pending_votes"] = 1
+        
+        # Show the pending name on screen (for visual feedback)
+        track["name"] = name
+        
+        # Check if confirmed
+        if track["pending_votes"] >= self.CONFIRM_THRESHOLD:
+            if not track.get("confirmed", False):
+                track["confirmed"] = True
+                print(f"[TRACKER] Identity CONFIRMED: Track {track_id} = {name} (after {track['pending_votes']} votes)")
+                return True  # Just became confirmed
+        else:
+            track["confirmed"] = False
+        
+        return False
     
     def clear_name(self, track_id):
         """Clear the name to trigger re-verification"""
         if track_id in self.tracks:
             self.tracks[track_id]["name"] = None
+            self.tracks[track_id]["pending_name"] = None
+            self.tracks[track_id]["pending_votes"] = 0
+            self.tracks[track_id]["confirmed"] = False
             self.tracks[track_id]["verify_count"] = 0
 
     def remove_user(self, name_to_remove):
@@ -125,6 +206,9 @@ class Tracker:
         for tid, data in self.tracks.items():
             if data["name"] == name_to_remove:
                 data["name"] = None
+                data["pending_name"] = None
+                data["pending_votes"] = 0
+                data["confirmed"] = False
                 data["verify_count"] = 0
                 data["last_verified"] = 0
 
