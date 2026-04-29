@@ -150,6 +150,12 @@ def migrate():
             count = 0
             for date_str, workers in att_data.items():
                 for worker_id, record in workers.items():
+                    # Verify user exists to avoid ForeignKeyViolation
+                    user = db.query(User).filter(User.username == worker_id).first()
+                    if not user:
+                        # print(f"   ⚠️  {worker_id} — users jadvalida topilmadi, davomat o'tkazib yuborildi")
+                        continue
+                        
                     # Check if record already exists
                     existing = db.query(Attendance).filter(
                         Attendance.username == worker_id,
