@@ -36,6 +36,9 @@ from app.services.telegram_notify import (
     get_effective_chat_id,
     process_telegram_updates_long_poll,
     notify_attendance_event,
+    get_extra_chat_ids,
+    save_extra_chat_ids,
+    send_daily_summary_with_chart,
 )
 from app.services.video_processor import get_or_create_processor, remove_processor
 import base64
@@ -355,7 +358,7 @@ TELEGRAM_SENT_FLAG = os.path.join(settings.DATA_DIR, "telegram_last_sent.txt")
 
 
 async def telegram_daily_scheduler_loop():
-    """Kunlik Telegram xulosasini sozlangan vaqtda bir marta yuborish."""
+    """Kunlik Telegram xulosasini sozlangan vaqtda bir marta yuborish (grafik bilan)."""
     while True:
         await asyncio.sleep(45)
         try:
@@ -372,9 +375,8 @@ async def telegram_daily_scheduler_loop():
                 with open(TELEGRAM_SENT_FLAG, "r", encoding="utf-8") as f:
                     if f.read().strip() == today_s:
                         continue
-            text = await asyncio.to_thread(build_daily_summary_text)
-            ok = await asyncio.to_thread(send_telegram_message, text)
-            if ok:
+            result = await asyncio.to_thread(send_daily_summary_with_chart)
+            if result.get("ok"):
                 os.makedirs(settings.DATA_DIR, exist_ok=True)
                 with open(TELEGRAM_SENT_FLAG, "w", encoding="utf-8") as f:
                     f.write(today_s)
@@ -2107,6 +2109,64 @@ async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
         return JSONResponse({"ok": False, "error": "chat_id kerak"}, status_code=400)
     save_chat_id_to_file(cid)
     return JSONResponse({"ok": True, "chat_id_saved": True})
+
+
+@router.get("/api/telegram/managers")
+async def api_get_managers(request: Request):
+    """Qo'shimcha manager chat ID lar ro'yxatini qaytaradi."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    return JSONResponse({"ok": True, "managers": get_extra_chat_ids()})
+
+
+@router.post("/api/telegram/managers")
+async def api_add_manager(request: Request, body: dict = Body(...)):
+    """Yangi manager chat ID qo'shadi. Body: {chat_id, label}"""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    cid = str(body.get("chat_id", "")).strip()
+    label = str(body.get("label", "")).strip()
+    if not cid:
+        return JSONResponse({"ok": False, "error": "chat_id kerak"}, status_code=400)
+    entries = get_extra_chat_ids()
+    # Dublikat tekshiruvi
+    if any(str(e.get("chat_id")) == cid for e in entries):
+        return JSONResponse({"ok": False, "error": "Bu chat ID allaqachon qo'shilgan"}, status_code=409)
+    entries.append({"chat_id": cid, "label": label or cid})
+    save_extra_chat_ids(entries)
+    return JSONResponse({"ok": True, "managers": entries})
+
+
+@router.delete("/api/telegram/managers/{chat_id}")
+async def api_remove_manager(request: Request, chat_id: str):
+    """Manager chat ID ni o'chiradi."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    entries = get_extra_chat_ids()
+    new_entries = [e for e in entries if str(e.get("chat_id")) != chat_id]
+    if len(new_entries) == len(entries):
+        return JSONResponse({"ok": False, "error": "Topilmadi"}, status_code=404)
+    save_extra_chat_ids(new_entries)
+    return JSONResponse({"ok": True, "managers": new_entries})
+
+
+@router.post("/api/telegram/send-summary-chart")
+async def api_telegram_send_summary_chart(request: Request):
+    """Grafik bilan kunlik xulosani barcha chatlarga yuboradi."""
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if not is_telegram_ready():
+        return JSONResponse(
+            {"ok": False, "error": "Token yoki Chat ID to'liq emas."},
+            status_code=400,
+        )
+    result = await asyncio.to_thread(send_daily_summary_with_chart)
+    status = 200 if result.get("ok") else 502
+    return JSONResponse(result, status_code=status)
 
 
 # ========== DEPARTMENTS ENDPOINTS ==========

@@ -76,6 +76,10 @@
     </table>
 </div>
 
+<!-- Pagination -->
+<div id="paginationContainer" style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:18px; flex-wrap:wrap;">
+</div>
+
 <!-- Delete Confirmation Modal -->
 <div id="deleteModal" class="modal-overlay" style="display: none;">
     <div class="modal-content">
@@ -139,29 +143,156 @@
         font-weight: 700;
         line-height: 1;
     }
+
+    /* Pagination */
+    .pagination-btn {
+        min-width: 38px;
+        height: 38px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-dark);
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 10px;
+    }
+    .pagination-btn:hover {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    .pagination-btn.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+    }
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .pagination-info {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin: 0 8px;
+    }
 </style>
 
 <script>
     let deleteUserIds = [];
     let isBulkDelete = false;
 
+    // Pagination State
+    let allUserRows = [];
+    let currentPage = 1;
+    const RECORDS_PER_PAGE = 15;
+
     // Filter Logic
-    document.getElementById('searchInput')?.addEventListener('input', filterUsers);
-    document.getElementById('deptFilter')?.addEventListener('change', filterUsers);
+    document.getElementById('searchInput')?.addEventListener('input', () => { currentPage = 1; filterUsers(); });
+    document.getElementById('deptFilter')?.addEventListener('change', () => { currentPage = 1; filterUsers(); });
     document.getElementById('resetFilters')?.addEventListener('click', () => {
         document.getElementById('searchInput').value = '';
         document.getElementById('deptFilter').value = '';
+        currentPage = 1;
         filterUsers();
     });
+
+    function goToPage(page) {
+        currentPage = page;
+        filterUsers();
+        document.querySelector('.table-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    function renderPagination(totalItems) {
+        const container = document.getElementById('paginationContainer');
+        const totalPages = Math.ceil(totalItems / RECORDS_PER_PAGE);
+        container.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Prev button
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'pagination-btn';
+        prevBtn.innerHTML = '‹';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => goToPage(currentPage - 1);
+        container.appendChild(prevBtn);
+
+        // Page buttons
+        const maxVisible = 5;
+        let startP = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endP = Math.min(totalPages, startP + maxVisible - 1);
+        if (endP - startP < maxVisible - 1) startP = Math.max(1, endP - maxVisible + 1);
+
+        if (startP > 1) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = '1';
+            b.onclick = () => goToPage(1);
+            container.appendChild(b);
+            if (startP > 2) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+        }
+
+        for (let i = startP; i <= endP; i++) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn' + (i === currentPage ? ' active' : '');
+            b.textContent = i;
+            b.onclick = () => goToPage(i);
+            container.appendChild(b);
+        }
+
+        if (endP < totalPages) {
+            if (endP < totalPages - 1) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = totalPages;
+            b.onclick = () => goToPage(totalPages);
+            container.appendChild(b);
+        }
+
+        // Next button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'pagination-btn';
+        nextBtn.innerHTML = '›';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => goToPage(currentPage + 1);
+        container.appendChild(nextBtn);
+
+        // Info text
+        const info = document.createElement('span');
+        info.className = 'pagination-info';
+        const from = (currentPage - 1) * RECORDS_PER_PAGE + 1;
+        const to = Math.min(currentPage * RECORDS_PER_PAGE, totalItems);
+        info.textContent = `${from}-${to} / ${totalItems}`;
+        container.appendChild(info);
+    }
 
     function filterUsers() {
         const searchTerm = document.getElementById('searchInput').value.toLowerCase();
         const deptFilter = document.getElementById('deptFilter').value.toLowerCase();
 
-        const rows = document.querySelectorAll('tbody tr[data-user-id]');
-        let visibleCount = 0;
+        if (allUserRows.length === 0) {
+            allUserRows = Array.from(document.querySelectorAll('tbody tr[data-user-id]'));
+        }
 
-        rows.forEach(row => {
+        let visibleRows = [];
+
+        allUserRows.forEach(row => {
             const userId = row.querySelector('.user-link').textContent.toLowerCase();
             const fullName = row.cells[3].textContent.toLowerCase();
             const phone = row.cells[4].textContent.toLowerCase();
@@ -171,8 +302,22 @@
             const matchesDept = !deptFilter || deptText === deptFilter;
 
             if (matchesSearch && matchesDept) {
+                visibleRows.push(row);
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        const totalItems = visibleRows.length;
+        const totalPages = Math.ceil(totalItems / RECORDS_PER_PAGE);
+        if (currentPage > totalPages && totalPages > 0) currentPage = totalPages;
+
+        const startIdx = (currentPage - 1) * RECORDS_PER_PAGE;
+        const endIdx = startIdx + RECORDS_PER_PAGE;
+
+        visibleRows.forEach((row, index) => {
+            if (index >= startIdx && index < endIdx) {
                 row.style.display = '';
-                visibleCount++;
             } else {
                 row.style.display = 'none';
             }
@@ -181,7 +326,7 @@
         const tbody = document.querySelector('tbody');
         let noDataRow = document.getElementById('noDataRow');
 
-        if (visibleCount === 0 && rows.length > 0) {
+        if (totalItems === 0 && allUserRows.length > 0) {
             if (!noDataRow) {
                 noDataRow = document.createElement('tr');
                 noDataRow.id = 'noDataRow';
@@ -189,8 +334,13 @@
                 tbody.appendChild(noDataRow);
             }
             noDataRow.style.display = '';
+            document.getElementById('paginationContainer').innerHTML = '';
         } else if (noDataRow) {
             noDataRow.style.display = 'none';
+        }
+
+        if (totalItems > 0) {
+            renderPagination(totalItems);
         }
     }
 
@@ -279,6 +429,7 @@
 
     // Support deep linking to filter by department
     window.addEventListener('DOMContentLoaded', () => {
+        allUserRows = Array.from(document.querySelectorAll('tbody tr[data-user-id]'));
         const urlParams = new URLSearchParams(window.location.search);
         const dept = urlParams.get('dept');
         if (dept) {
@@ -288,12 +439,12 @@
                 for (let i = 0; i < deptFilter.options.length; i++) {
                     if (deptFilter.options[i].value === dept || deptFilter.options[i].value.toLowerCase() === dept.toLowerCase()) {
                         deptFilter.selectedIndex = i;
-                        filterUsers();
                         break;
                     }
                 }
             }
         }
+        filterUsers();
     });
 </script>
 {% endblock %}

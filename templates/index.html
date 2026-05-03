@@ -664,6 +664,7 @@
     let timer = null;
     let unknownTimer = null;
     let resetUnknownTimer = null;
+    let frameLoopId = null;
 
     const localVideo = document.getElementById('localVideo');
     const overlayCanvas = document.getElementById('overlayCanvas');
@@ -687,8 +688,40 @@
     let videoReady = false;
     let sendingFrame = false;
 
+    // ========== WAKE LOCK — Planshetni uyquga ketishdan saqlaydi ==========
+    let wakeLock = null;
+
+    async function requestWakeLock() {
+        try {
+            if ('wakeLock' in navigator) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                console.log('Wake Lock: Faollashtirildi ✅');
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake Lock: Chiqarildi');
+                    wakeLock = null;
+                });
+            }
+        } catch (err) {
+            console.warn('Wake Lock xatosi:', err.message);
+        }
+    }
+
+    // Sahifa ko'rinsa wake lock qayta so'raladi
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !wakeLock) {
+            requestWakeLock();
+        }
+    });
+
     // ========== BROWSER CAMERA ==========
     async function startCamera() {
+        // Eski streamni to'xtatamiz
+        if (localVideo.srcObject) {
+            localVideo.srcObject.getTracks().forEach(t => t.stop());
+            localVideo.srcObject = null;
+        }
+        videoReady = false;
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
                 video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -709,23 +742,39 @@
     }
 
     // ========== VIDEO WEBSOCKET (frame sending) ==========
+    let wsVideoReconnecting = false;
+
     function connectVideoWS() {
+        if (wsVideoReconnecting) return;
+        // Eski WS ni yopamiz
+        if (wsVideo) {
+            try { wsVideo.onclose = null; wsVideo.close(); } catch(e) {}
+        }
+
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         wsVideo = new WebSocket(`${protocol}//${window.location.host}/ws/video`);
 
         wsVideo.onopen = () => {
+            wsVideoReconnecting = false;
             connectionDot.classList.remove('offline');
             connectionStatus.textContent = 'System Online';
+            lastWsResponse = Date.now();
             startFrameLoop();
         };
 
         wsVideo.onclose = () => {
             connectionDot.classList.add('offline');
             connectionStatus.textContent = 'Reconnecting...';
-            setTimeout(connectVideoWS, 3000);
+            wsVideoReconnecting = true;
+            setTimeout(() => { wsVideoReconnecting = false; connectVideoWS(); }, 3000);
+        };
+
+        wsVideo.onerror = () => {
+            try { wsVideo.close(); } catch(e) {}
         };
 
         wsVideo.onmessage = (event) => {
+            lastWsResponse = Date.now();
             try {
                 const result = JSON.parse(event.data);
                 drawOverlay(result);
@@ -735,19 +784,74 @@
     }
 
     function startFrameLoop() {
+        // Oldingi loopni to'xtatish
+        if (frameLoopId) clearInterval(frameLoopId);
+        sendingFrame = false;
+
         const FPS = 5;
-        setInterval(() => {
+        frameLoopId = setInterval(() => {
             if (!videoReady || !wsVideo || wsVideo.readyState !== WebSocket.OPEN || sendingFrame) return;
 
             captureCtx.drawImage(localVideo, 0, 0);
             captureCanvas.toBlob((blob) => {
-                if (blob && wsVideo.readyState === WebSocket.OPEN) {
+                if (blob && wsVideo && wsVideo.readyState === WebSocket.OPEN) {
                     sendingFrame = true;
                     wsVideo.send(blob);
                 }
             }, 'image/jpeg', 0.7);
         }, 1000 / FPS);
     }
+
+    // ========== LIVENESS WATCHDOG — Muzlab qolishni aniqlash ==========
+    let lastWsResponse = Date.now();
+
+    setInterval(() => {
+        const silentSec = (Date.now() - lastWsResponse) / 1000;
+
+        // 30 sekunddan ortiq javob kelmasa — WS o'lik, hamma narsani qayta boshlash
+        if (silentSec > 30) {
+            console.warn(`Watchdog: ${silentSec.toFixed(0)}s javob yo'q — qayta ulanish...`);
+            connectionDot.classList.add('offline');
+            connectionStatus.textContent = 'Restarting...';
+            sendingFrame = false;
+            lastWsResponse = Date.now(); // qayta triggerlanmasin
+
+            // WebSocket ni yopib, kamerani qayta boshlash
+            if (wsVideo) { try { wsVideo.onclose = null; wsVideo.close(); } catch(e) {} wsVideo = null; }
+            if (frameLoopId) { clearInterval(frameLoopId); frameLoopId = null; }
+            startCamera();
+        }
+    }, 10000); // Har 10 sekundda tekshiriladi
+
+    // ========== TAB VISIBILITY — Ekranga qaytganda hamma narsani tiklaymiz ==========
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            console.log('Tab visible — tizimni tiklash...');
+            lastWsResponse = Date.now();
+            sendingFrame = false;
+
+            // Kamera tirikmi tekshiramiz
+            const stream = localVideo.srcObject;
+            const trackAlive = stream && stream.getVideoTracks().length > 0
+                && stream.getVideoTracks()[0].readyState === 'live';
+
+            if (!trackAlive) {
+                console.warn('Kamera track o\'lik — qayta boshlash');
+                if (wsVideo) { try { wsVideo.onclose = null; wsVideo.close(); } catch(e) {} wsVideo = null; }
+                if (frameLoopId) { clearInterval(frameLoopId); frameLoopId = null; }
+                startCamera();
+            } else if (!wsVideo || wsVideo.readyState !== WebSocket.OPEN) {
+                connectVideoWS();
+            }
+
+            // Attendance WS ham tirikmi
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                connectWS();
+            }
+
+            // Wake lock qayta olinadi (yuqorida alohida listener bor)
+        }
+    });
 
     // ========== OVERLAY DRAWING ==========
     function drawOverlay(result) {
@@ -763,10 +867,6 @@
             const color = face.color === 'green' ? '#22c55e' : '#ef4444';
 
             // FLIP COORDINATES horizontally because video is mirrored
-            // Original: x1 is left, x2 is right (in raw frame)
-            // Mirrored view: Raw Left is View Right.
-            // New x1 = width - old x2
-            // New x2 = width - old x1
             const w = overlayCanvas.width;
             const new_x1 = w - x2;
             const new_x2 = w - x1;
@@ -800,6 +900,7 @@
 
     // ========== ATTENDANCE WEBSOCKET (notifications — unchanged) ==========
     function connectWS() {
+        if (ws && ws.readyState === WebSocket.OPEN) return;
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
 
@@ -917,6 +1018,7 @@
     }
 
     // Initialize
+    requestWakeLock();
     startCamera();
     connectWS();
 </script>

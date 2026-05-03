@@ -1,4 +1,5 @@
 import html
+import io
 import json
 import os
 import urllib.error
@@ -6,6 +7,57 @@ import urllib.request
 from datetime import datetime, date
 
 from app.core.config import settings
+
+
+# ── Extra managers (multi-recipient) ────────────────────────────────────────
+
+def _extra_chats_file() -> str:
+    return os.path.join(settings.DATA_DIR, "telegram_extra_chats.json")
+
+
+def get_extra_chat_ids() -> list:
+    """Qo'shimcha manager chat ID lar ro'yxatini qaytaradi.
+    Har bir element: {chat_id: str, label: str}"""
+    path = _extra_chats_file()
+    if not os.path.isfile(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if isinstance(data, list):
+            return data
+    except (OSError, json.JSONDecodeError):
+        pass
+    return []
+
+
+def save_extra_chat_ids(entries: list) -> None:
+    """Qo'shimcha manager chat ID larini saqlaydi."""
+    os.makedirs(settings.DATA_DIR, exist_ok=True)
+    with open(_extra_chats_file(), "w", encoding="utf-8") as f:
+        json.dump(entries, f, ensure_ascii=False, indent=2)
+
+
+def broadcast_to_all(text: str, parse_mode=None) -> dict:
+    """Asosiy chat + barcha qo'shimcha managerlarga xabar yuboradi.
+    Natija: {ok: bool, sent: int, errors: list}"""
+    main_result = send_telegram_message_result(text, parse_mode=parse_mode)
+    errors = []
+    sent = 1 if main_result.get("ok") else 0
+    if not main_result.get("ok"):
+        errors.append(f"main: {main_result.get('error', '?')}")
+
+    for entry in get_extra_chat_ids():
+        cid = str(entry.get("chat_id", "")).strip()
+        if not cid:
+            continue
+        r = send_telegram_to_chat(cid, text, parse_mode=parse_mode)
+        if r.get("ok"):
+            sent += 1
+        else:
+            errors.append(f"{cid}: {r.get('error', '?')}")
+
+    return {"ok": sent > 0, "sent": sent, "errors": errors}
 
 
 def _chat_id_file() -> str:
@@ -115,7 +167,7 @@ def ensure_telegram_long_poll_mode() -> None:
             print(f"Telegram: deleteWebhook xato: {r}")
 
 
-def send_telegram_to_chat(chat_id, text: str, parse_mode=None) -> dict:
+def send_telegram_to_chat(chat_id, text: str, parse_mode=None, reply_markup=None) -> dict:
     """Muayyan chatga xabar (get_effective_chat_id ishlatilmaydi)."""
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
@@ -124,6 +176,8 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None) -> dict:
     payload = {"chat_id": chat_id, "text": text}
     if parse_mode:
         payload["parse_mode"] = parse_mode
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     data = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url,
@@ -142,10 +196,12 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None) -> dict:
         return {"ok": False, "error": str(e)}
 
 
+bot_admin_states = {}
+
 def process_telegram_updates_long_poll() -> None:
     """
     Bir marta getUpdates (timeout=50) kutadi va yangilanishlarni qayta ishlaydi.
-    /start ga javob + Chat ID ko'rsatish.
+    Main admin uchun interaktiv tugmalar (Manager qo'shish, hisobot).
     """
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
@@ -167,27 +223,86 @@ def process_telegram_updates_long_poll() -> None:
     if not updates:
         return
 
+    main_admin_id = get_effective_chat_id()
+
     for u in updates:
         msg = u.get("message") or u.get("edited_message") or {}
         text = (msg.get("text") or "").strip()
         if not text:
             continue
-        low = text.split()[0].lower() if text else ""
-        if not low.startswith("/start"):
-            continue
         chat = msg.get("chat") or {}
         cid = chat.get("id")
         if cid is None:
             continue
-        name = (chat.get("first_name") or chat.get("title") or "").strip()
-        greet = f"Salom{name and (', ' + name) or ''}! 👋\n\n"
-        body = (
-            "Bu — <b>AIRI davomat</b> xabarnomasi boti.\n"
-            f"Sizning <b>Chat ID</b>:\n<code>{cid}</code>\n\n"
-            "Admin panel → <b>Sozlamalar</b> da shu ID ni «Chat ID ni saqlash» orqali qo'shing, "
-            "keyin test xabar yuboring."
-        )
-        send_telegram_to_chat(cid, greet + body, parse_mode="HTML")
+            
+        cid_str = str(cid)
+        is_main_admin = (cid_str == main_admin_id)
+
+        if text.lower().startswith("/start"):
+            name = (chat.get("first_name") or chat.get("title") or "").strip()
+            greet = f"Salom{name and (', ' + name) or ''}! 👋\n\n"
+            body = (
+                "Bu — <b>AIRI davomat</b> xabarnomasi boti.\n"
+                f"Sizning <b>Chat ID</b>:\n<code>{cid}</code>\n\n"
+            )
+            keyboard = None
+            if is_main_admin:
+                body += "Siz asosiy adminsiz. Boshqaruv tugmalari orqali botni sozlang:"
+                keyboard = {
+                    "keyboard": [
+                        [{"text": "➕ Manager qo'shish"}, {"text": "👥 Managerlar"}],
+                        [{"text": "📊 Kunlik hisobot yuborish"}]
+                    ],
+                    "resize_keyboard": True
+                }
+            else:
+                body += "Admin panel → <b>Sozlamalar</b> da shu ID ni «Chat ID ni saqlash» orqali qo'shing."
+                
+            send_telegram_to_chat(cid, greet + body, parse_mode="HTML", reply_markup=keyboard)
+            bot_admin_states.pop(cid_str, None)
+            continue
+            
+        # Asosiy admin buyruqlari
+        if is_main_admin:
+            if text == "➕ Manager qo'shish":
+                bot_admin_states[cid_str] = "WAITING_MANAGER_ID"
+                send_telegram_to_chat(cid, "Yangi managerning <b>Chat ID</b> sini yuboring:\n(U avval botga /start yuborgan bo'lishi kerak)", parse_mode="HTML")
+                continue
+                
+            elif text == "👥 Managerlar":
+                mgrs = get_extra_chat_ids()
+                if not mgrs:
+                    send_telegram_to_chat(cid, "Hozircha qo'shimcha managerlar yo'q.")
+                else:
+                    lines = ["<b>Qo'shimcha managerlar:</b>"]
+                    for m in mgrs:
+                        lines.append(f"• {m.get('label', m.get('chat_id'))} (<code>{m.get('chat_id')}</code>)")
+                    send_telegram_to_chat(cid, "\n".join(lines), parse_mode="HTML")
+                bot_admin_states.pop(cid_str, None)
+                continue
+                
+            elif text == "📊 Kunlik hisobot yuborish":
+                send_telegram_to_chat(cid, "Grafik yaratilmoqda...")
+                bot_admin_states.pop(cid_str, None)
+                try:
+                    photo_bytes = build_daily_summary_chart()
+                    caption = build_daily_summary_text()
+                    _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
+                except Exception as e:
+                    send_telegram_to_chat(cid, f"Xato: {e}")
+                continue
+                
+            elif bot_admin_states.get(cid_str) == "WAITING_MANAGER_ID":
+                new_mgr_id = text.strip()
+                entries = get_extra_chat_ids()
+                if any(str(e.get("chat_id")) == new_mgr_id for e in entries):
+                    send_telegram_to_chat(cid, "⚠️ Bu Chat ID allaqachon qo'shilgan!")
+                else:
+                    entries.append({"chat_id": new_mgr_id, "label": new_mgr_id})
+                    save_extra_chat_ids(entries)
+                    send_telegram_to_chat(cid, f"✅ Manager muvaffaqiyatli qo'shildi: <code>{new_mgr_id}</code>\nU endi xabarlarni oladi.", parse_mode="HTML")
+                bot_admin_states.pop(cid_str, None)
+                continue
 
     max_id = max(u["update_id"] for u in updates) + 1
     _write_next_offset(max_id)
@@ -224,7 +339,7 @@ def fetch_chat_ids_from_updates(limit: int = 50) -> dict:
 def notify_attendance_event(event_type: str, full_name: str, worker_id: str, record: dict) -> None:
     """
     Yuz tanilganda davomat yozilgandan keyin Telegramga qisqa xabar.
-    Faqat token + chat ID va TELEGRAM_NOTIFY_ATTENDANCE yoqilgan bo'lsa.
+    Asosiy chat + barcha qo'shimcha managerlarga yuboriladi.
     """
     if not settings.TELEGRAM_NOTIFY_ATTENDANCE:
         return
@@ -243,7 +358,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"👤 {fn} <code>{wid}</code>\n"
                 f"⏰ {t}"
             )
-            send_telegram_message_result(text, parse_mode="HTML")
+            broadcast_to_all(text, parse_mode="HTML")
         elif event_type == "check_out":
             cin_s = record.get("check_in_time")
             cout_s = record.get("check_out_time")
@@ -269,7 +384,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"Kelgan: {cin_disp}\n"
                 f"📊 Ishlangan: {wt}"
             )
-            send_telegram_message_result(text, parse_mode="HTML")
+            broadcast_to_all(text, parse_mode="HTML")
     except Exception as e:
         print(f"Telegram attendance notify: {e}")
 
@@ -379,3 +494,221 @@ def build_daily_summary_text() -> str:
     lines.append(f"\n🟠 Kechikkanlar (taxminan): {late_n}")
 
     return "\n".join(lines)
+
+
+# ── Grafik (Pillow) ─────────────────────────────────────────────────────────
+
+def build_daily_summary_chart() -> bytes:
+    """Bugungi davomat ma'lumotlari asosida PNG rasm (bar chart) chizadi.
+    Pillow ishlatiladi — matplotlib talab qilinmaydi.
+    Qaytaradi: PNG bytes."""
+    from PIL import Image, ImageDraw, ImageFont
+    from PIL import Image as PILImage
+    from app.services.attendance_db import attendance_db
+    from app.services.user_db import user_db
+    from app.services.holidays_db import holidays_db
+    from app.services.schedule_settings import load_schedule, classify_attendance_status
+
+    today = date.today()
+    today_iso = today.isoformat()
+    users = user_db.get_all_users()
+    records = attendance_db.get_records_by_date(today_iso)
+    sched = load_schedule()
+
+    total = len(users)
+    present_ids = set(records.keys())
+    late_n = 0
+    on_time_n = 0
+    for wid, rec in records.items():
+        cin_s = rec.get("check_in_time")
+        cout_s = rec.get("check_out_time")
+        cin_dt = datetime.fromisoformat(cin_s) if cin_s else None
+        cout_dt = datetime.fromisoformat(cout_s) if cout_s else None
+        st = classify_attendance_status(cin_dt, cout_dt, today)
+        if st.get("late"):
+            late_n += 1
+        else:
+            on_time_n += 1
+
+    absent_n = max(0, total - len(present_ids))
+
+    # ── High-Res Canvas (Anti-aliasing uchun 2x o'lchamda chizamiz) ──
+    scale = 2
+    W, H = 800 * scale, 480 * scale
+    BG = (18, 18, 30)          # dark navy
+    img = Image.new("RGB", (W, H), BG)
+    draw = ImageDraw.Draw(img)
+
+    # Try to load a font; fall back to default
+    try:
+        font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 26 * scale)
+        font_label = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 18 * scale)
+        font_small = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 15 * scale)
+    except (OSError, IOError):
+        font_title = ImageFont.load_default()
+        font_label = font_title
+        font_small = font_title
+
+    # Title
+    hol = holidays_db.get_label(today_iso)
+    title = f"Kunlik davomat — {today_iso}"
+    if hol:
+        title += f"  ({hol})"
+    draw.text((W // 2, 40 * scale), title, font=font_title, fill=(240, 240, 255), anchor="mm")
+
+    # Work time subtitle
+    sub = f"Ish vaqti: {sched.get('work_start', '—')} – {sched.get('work_end', '—')}   |   Jami: {total} xodim"
+    draw.text((W // 2, 80 * scale), sub, font=font_small, fill=(180, 180, 220), anchor="mm")
+
+    # ── Bar chart ──
+    categories = [
+        ("O'z vaqtida",  on_time_n, (34, 197, 94)),    # Tailwind green-500
+        ("Kechikkan",    late_n,    (245, 158, 11)),   # Tailwind amber-500
+        ("Kelmagan",     absent_n,  (239, 68, 68)),    # Tailwind red-500
+    ]
+
+    bar_area_x0 = 80 * scale
+    bar_area_x1 = W - 60 * scale
+    bar_area_y0 = 130 * scale
+    bar_area_y1 = H - 110 * scale
+    bar_area_w  = bar_area_x1 - bar_area_x0
+    bar_area_h  = bar_area_y1 - bar_area_y0
+
+    max_val = max(max(c[1] for c in categories), 4) # Kamida 4 bo'lsin, grid chiroyli chiqishi uchun
+    n_bars  = len(categories)
+    gap     = 60 * scale
+    bar_w   = (bar_area_w - gap * (n_bars + 1)) // n_bars
+
+    # Grid lines
+    grid_steps = 4
+    for i in range(grid_steps + 1):
+        gy = bar_area_y1 - int(i / grid_steps * bar_area_h)
+        draw.line([(bar_area_x0, gy), (bar_area_x1, gy)], fill=(45, 45, 65), width=1 * scale)
+        val_label = str(int(round(i / grid_steps * max_val)))
+        draw.text((bar_area_x0 - 15 * scale, gy), val_label, font=font_small, fill=(140, 140, 180), anchor="rm")
+
+    for i, (cat_name, val, color) in enumerate(categories):
+        bx = bar_area_x0 + gap * (i + 1) + bar_w * i
+        bar_h_px = int(val / max_val * bar_area_h) if max_val > 0 else 0
+        by_top = bar_area_y1 - bar_h_px
+        cx = bx + bar_w // 2
+
+        if val > 0:
+            shadow_color = tuple(max(0, c - 60) for c in color)
+            # Shadow
+            draw.rounded_rectangle([bx + 6*scale, by_top + 6*scale, bx + bar_w + 6*scale, bar_area_y1], radius=8*scale, fill=shadow_color)
+            # Main Bar
+            draw.rounded_rectangle([bx, by_top, bx + bar_w, bar_area_y1], radius=8*scale, fill=color)
+            # Value on top
+            draw.text((cx, by_top - 20 * scale), str(val), font=font_label, fill=(255, 255, 255), anchor="mm")
+        else:
+            # Draw a tiny flat line for 0
+            draw.rounded_rectangle([bx, bar_area_y1 - 4*scale, bx + bar_w, bar_area_y1], radius=2*scale, fill=color)
+            draw.text((cx, bar_area_y1 - 20 * scale), "0", font=font_label, fill=(150, 150, 180), anchor="mm")
+
+        # Category label below
+        draw.text((cx, bar_area_y1 + 25 * scale), cat_name, font=font_small, fill=(220, 220, 240), anchor="mt")
+
+    # ── Percentage badge ──
+    pct = round(len(present_ids) / total * 100) if total > 0 else 0
+    pct_color = (34, 197, 94) if pct >= 80 else (245, 158, 11) if pct >= 50 else (239, 68, 68)
+    badge_text = f"Davomat: {pct}%"
+    
+    # Badge background
+    badge_w, badge_h = 220 * scale, 40 * scale
+    badge_x0 = (W - badge_w) // 2
+    badge_y0 = H - 65 * scale
+    
+    draw.rounded_rectangle([badge_x0, badge_y0, badge_x0 + badge_w, badge_y0 + badge_h], radius=20*scale, fill=(25, 25, 40), outline=pct_color, width=2*scale)
+    draw.text((W // 2, badge_y0 + badge_h // 2), badge_text, font=font_label, fill=pct_color, anchor="mm")
+
+    # ── Downscale for anti-aliasing ──
+    final_img = img.resize((W // scale, H // scale), resample=PILImage.Resampling.LANCZOS)
+
+    import io
+    buf = io.BytesIO()
+    final_img.save(buf, format="PNG", optimize=True)
+    return buf.getvalue()
+
+
+def _send_photo_to_chat(chat_id: str, photo_bytes: bytes, caption: str = "") -> dict:
+    """Muayyan chatga foto yuboradi (sendPhoto multipart)."""
+    token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
+    if not token:
+        return {"ok": False, "error": "Token yo'q"}
+    url = f"https://api.telegram.org/bot{token}/sendPhoto"
+    import email.generator
+    import email.mime.multipart
+    import email.mime.base
+    import email.mime.text
+
+    boundary = "----TgBoundary1234567890"
+    body_parts = []
+    body_parts.append(
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="chat_id"\r\n\r\n'
+        f"{chat_id}\r\n"
+    )
+    if caption:
+        body_parts.append(
+            f"--{boundary}\r\n"
+            f'Content-Disposition: form-data; name="caption"\r\n\r\n'
+            f"{caption}\r\n"
+        )
+    body_parts.append(
+        f"--{boundary}\r\n"
+        f'Content-Disposition: form-data; name="photo"; filename="chart.png"\r\n'
+        f"Content-Type: image/png\r\n\r\n"
+    )
+    body = "".join(body_parts).encode("utf-8") + photo_bytes + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(
+        url,
+        data=body,
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode("utf-8", errors="replace"))
+            return {"ok": result.get("ok", False), "error": result.get("description")}
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def send_daily_summary_with_chart() -> dict:
+    """Barcha chatlarga grafik + matn xulosasini yuboradi.
+    Natija: {ok: bool, sent: int, errors: list}"""
+    if not is_telegram_ready():
+        return {"ok": False, "sent": 0, "errors": ["Telegram sozlanmagan"]}
+
+    try:
+        photo_bytes = build_daily_summary_chart()
+    except Exception as e:
+        print(f"Chart generation error: {e}")
+        # Fallback: faqat matn
+        text = build_daily_summary_text()
+        return broadcast_to_all(text)
+
+    caption = build_daily_summary_text()
+    # Telegram caption limit 1024 belgi
+    if len(caption) > 1024:
+        caption = caption[:1020] + "..."
+
+    all_chats = [get_effective_chat_id()] + [
+        str(e.get("chat_id", "")).strip()
+        for e in get_extra_chat_ids()
+        if str(e.get("chat_id", "")).strip()
+    ]
+
+    sent = 0
+    errors = []
+    for cid in all_chats:
+        if not cid:
+            continue
+        r = _send_photo_to_chat(cid, photo_bytes, caption)
+        if r.get("ok"):
+            sent += 1
+        else:
+            errors.append(f"{cid}: {r.get('error', '?')}")
+
+    return {"ok": sent > 0, "sent": sent, "errors": errors}

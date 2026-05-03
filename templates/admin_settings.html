@@ -91,8 +91,26 @@
         <div style="display: flex; flex-wrap: wrap; gap: 12px;">
             <button type="button" id="btnTgTest" class="btn btn-secondary">Test xabar</button>
             <button type="button" id="btnTgSummary" class="btn btn-primary">Hozirgi kunlik xulosani yuborish</button>
+            <button type="button" id="btnTgChart" class="btn btn-primary" style="background: linear-gradient(135deg, #6366f1, #8b5cf6);">📊 Grafik hisobot yuborish</button>
         </div>
         <p id="tgMsg" style="margin-top: 12px; font-size: 0.9rem; white-space: pre-wrap;"></p>
+
+        <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
+
+        <h3 style="margin-bottom: 12px; font-size: 1rem;">👥 Qo'shimcha managerlar</h3>
+        <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 14px;">
+            Bu chatlar ham barcha davomat xabarlarini va kunlik grafik hisobotni oladi.
+            Manager botga <strong>/start</strong> yuborsin, so'ng «Chat ID ni topish» orqali ID sini bilib oling.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px;">
+            <input type="text" id="mgrChatId" placeholder="Chat ID (masalan 987654321)" class="form-input"
+                style="flex: 1; min-width: 180px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            <input type="text" id="mgrLabel" placeholder="Ism (ixtiyoriy)" class="form-input"
+                style="flex: 1; min-width: 140px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-primary); color: var(--text-dark);">
+            <button type="button" id="btnAddMgr" class="btn btn-primary">Qo'shish</button>
+        </div>
+        <ul id="mgrList" style="list-style: none; padding: 0; margin: 0 0 8px 0;"></ul>
+        <p id="mgrMsg" style="font-size: 0.9rem; margin-top: 4px;"></p>
     </div>
 </div>
 
@@ -200,5 +218,76 @@
         if (j.ok === true) show(msg, 'Kunlik xulosa yuborildi.', true);
         else show(msg, j.error || ('HTTP ' + r.status), false);
     });
+
+    document.getElementById('btnTgChart').addEventListener('click', async () => {
+        const msg = document.getElementById('tgMsg');
+        msg.textContent = 'Grafik yaratilmoqda...';
+        msg.style.color = 'var(--text-light)';
+        const r = await fetch('/api/telegram/send-summary-chart', { method: 'POST' });
+        const j = await r.json();
+        if (j.ok) show(msg, `Grafik yuborildi (${j.sent} chat).`, true);
+        else show(msg, (j.errors || [j.error || 'Xato']).join('; '), false);
+    });
+
+    // ── Managers ──────────────────────────────────────────────────────────
+    async function loadManagers() {
+        const list = document.getElementById('mgrList');
+        const r = await fetch('/api/telegram/managers');
+        const j = await r.json();
+        const managers = j.managers || [];
+        if (managers.length === 0) {
+            list.innerHTML = '<li style="color:var(--text-light);font-size:0.9rem;">Hozircha qo\'shimcha managerlar yo\'q.</li>';
+            return;
+        }
+        list.innerHTML = managers.map(m => `
+            <li style="display:flex;justify-content:space-between;align-items:center;
+                        padding:10px 12px;border:1px solid var(--border-color);border-radius:8px;
+                        margin-bottom:8px;background:var(--bg-primary);gap:12px;">
+                <span>
+                    <strong style="color:var(--text-dark);">${escHtml(m.label || m.chat_id)}</strong>
+                    <code style="margin-left:8px;font-size:0.82rem;color:var(--text-light);">${escHtml(String(m.chat_id))}</code>
+                </span>
+                <button type="button" class="btn btn-secondary btn-sm"
+                    style="padding:4px 10px;font-size:0.82rem;color:var(--accent-red);"
+                    onclick="removeManager('${escHtml(String(m.chat_id))}')">O'chirish</button>
+            </li>
+        `).join('');
+    }
+
+    function escHtml(s) {
+        return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    document.getElementById('btnAddMgr').addEventListener('click', async () => {
+        const msg = document.getElementById('mgrMsg');
+        const chat_id = document.getElementById('mgrChatId').value.trim();
+        const label   = document.getElementById('mgrLabel').value.trim();
+        if (!chat_id) { show(msg, 'Chat ID ni kiriting.', false); return; }
+        const r = await fetch('/api/telegram/managers', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id, label })
+        });
+        const j = await r.json();
+        if (j.ok) {
+            document.getElementById('mgrChatId').value = '';
+            document.getElementById('mgrLabel').value = '';
+            show(msg, 'Manager qo\'shildi.', true);
+            loadManagers();
+        } else {
+            show(msg, j.error || 'Xato', false);
+        }
+    });
+
+    async function removeManager(chat_id) {
+        if (!confirm('Bu managerni o\'chirish?')) return;
+        const r = await fetch('/api/telegram/managers/' + encodeURIComponent(chat_id), { method: 'DELETE' });
+        const j = await r.json();
+        if (j.ok) loadManagers();
+        else alert(j.error || 'Xato');
+    }
+
+    // Sahifa yuklanganda managerlarni ko'rsat
+    loadManagers();
 </script>
 {% endblock %}
