@@ -33,7 +33,7 @@
                 <th>Bo'lim</th>
                 <th>Kelgan vaqt</th>
                 <th>Ketgan vaqt</th>
-                <th>Ishlangan vaqt</th>
+                <th>Sof ish vaqti</th>
                 <th>Holat</th>
                 <th>Rasmlar</th>
                 <th style="width: 60px;">Actions</th>
@@ -148,6 +148,16 @@
     .user-link:hover {
         text-decoration: underline;
     }
+
+    /* Badge Rate */
+    .badge-rate {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
     /* Pagination */
     .pagination-btn {
         min-width: 38px;
@@ -365,19 +375,34 @@
             const deleteAction =
                 `<button class="btn-action btn-delete" onclick="deleteRecord('${record.date}', '${record.worker_id}')" title="Delete">🗑️</button>`;
 
+            const getStaffBadge = () => {
+                if (record.is_doctorant) return '<span class="badge-rate" style="background: rgba(139, 92, 246, 0.15); color: #7c3aed; font-size: 0.75rem;">🎓 Doc</span>';
+                if (record.staff_rate) {
+                    if (record.staff_rate < 1.0) return `<span class="badge-rate" style="background: rgba(245, 158, 11, 0.15); color: #d97706; font-size: 0.75rem;">${record.staff_rate}</span>`;
+                    return `<span class="badge-rate" style="background: rgba(34, 197, 94, 0.15); color: #16a34a; font-size: 0.75rem;">${record.staff_rate}</span>`;
+                }
+                return '';
+            };
+
             const tr = document.createElement('tr');
             tr.innerHTML = `
                 <td style="font-weight: 500; white-space: nowrap;">${record.date}</td>
                 <td>
-                    <div>
-                        <a href="/users/${record.worker_id}" class="user-link">${record.full_name || record.worker_id}</a>
-                        ${record.full_name ? `<div style="font-size: 0.8rem; color: var(--text-light);">ID: ${record.worker_id}</div>` : ''}
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div>
+                            <a href="/users/${record.worker_id}" class="user-link">${record.full_name || record.worker_id}</a>
+                            ${record.full_name ? `<div style="font-size: 0.8rem; color: var(--text-light);">ID: ${record.worker_id}</div>` : ''}
+                        </div>
+                        ${getStaffBadge()}
                     </div>
                 </td>
                 <td><span class="badge ${record.department}">${record.department || 'General'}</span></td>
                 <td class="time-in" style="white-space: nowrap;">${formatTime(record.check_in_time)}</td>
                 <td class="time-out" style="white-space: nowrap;">${formatTime(record.check_out_time)}</td>
-                <td class="hours-worked">${record.working_hours || '-'}</td>
+                <td class="hours-worked">
+                    ${record.net_hours || record.working_hours || '-'}
+                    ${record.abet_applied ? '<div style="font-size: 0.75rem; color: var(--accent-red); margin-top: 2px;">-1s Abet</div>' : ''}
+                </td>
                 <td style="font-size: 0.9rem; color: var(--text-medium);">${record.status_label || '—'}</td>
                 <td>
                     <div style="display: flex; gap: 8px;">

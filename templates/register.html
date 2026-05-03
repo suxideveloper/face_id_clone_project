@@ -111,6 +111,29 @@
                     <input type="text" id="position" name="position" placeholder="Lavozim" disabled>
                 </div>
 
+                <div class="form-group">
+                    <label for="staff_rate">Shtat birligi</label>
+                    <select id="staff_rate" name="staff_rate" disabled>
+                        <option value="0.25">0.25</option>
+                        <option value="0.5">0.5</option>
+                        <option value="0.75">0.75</option>
+                        <option value="1.0" selected>1.0</option>
+                        <option value="1.25">1.25</option>
+                        <option value="1.5">1.5</option>
+                        <option value="1.75">1.75</option>
+                        <option value="2.0">2.0</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="checkbox-label" for="is_doctorant" style="display: flex; align-items: center; cursor: pointer;">
+                        <input type="checkbox" id="is_doctorant" name="is_doctorant" value="true" disabled
+                            style="width: auto; margin-right: 8px;">
+                        🎓 Doctorant talaba
+                    </label>
+                    <small style="color: var(--text-light);">Doctorant sifatida belgilansa, hisobotlarda alohida ko'rsatiladi</small>
+                </div>
+
                 <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%;" disabled>
                     Ro'yxatdan o'tish
                 </button>
@@ -608,6 +631,8 @@
         document.getElementById('phone').disabled = false;
         document.getElementById('department').disabled = false;
         document.getElementById('position').disabled = false;
+        document.getElementById('staff_rate').disabled = false;
+        document.getElementById('is_doctorant').disabled = false;
         document.getElementById('submitBtn').disabled = false;
 
         document.getElementById('full_name').focus();

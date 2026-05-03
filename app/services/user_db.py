@@ -13,7 +13,9 @@ class UserDatabase:
                 phone=data.get("phone", ""),
                 department=data.get("department", ""),
                 position=data.get("position", ""),
-                registered=True
+                registered=True,
+                is_doctorant=data.get("is_doctorant", False),
+                staff_rate=data.get("staff_rate", 1.0),
             )
             db.add(u)
             db.commit()
@@ -29,7 +31,9 @@ class UserDatabase:
                     "phone": u.phone,
                     "department": u.department,
                     "position": u.position,
-                    "registered": u.registered
+                    "registered": u.registered,
+                    "is_doctorant": u.is_doctorant or False,
+                    "staff_rate": u.staff_rate if u.staff_rate is not None else 1.0,
                 }
             return None
     
@@ -43,7 +47,41 @@ class UserDatabase:
                     "phone": u.phone,
                     "department": u.department,
                     "position": u.position,
-                    "registered": u.registered
+                    "registered": u.registered,
+                    "is_doctorant": u.is_doctorant or False,
+                    "staff_rate": u.staff_rate if u.staff_rate is not None else 1.0,
+                } for u in users
+            }
+
+    def get_staff_users(self) -> dict:
+        """Faqat asosiy xodimlarni qaytaradi (doctorant bo'lmaganlar)."""
+        with SessionLocal() as db:
+            users = db.query(User).filter(User.is_doctorant == False).all()
+            return {
+                u.username: {
+                    "full_name": u.full_name,
+                    "phone": u.phone,
+                    "department": u.department,
+                    "position": u.position,
+                    "registered": u.registered,
+                    "is_doctorant": False,
+                    "staff_rate": u.staff_rate if u.staff_rate is not None else 1.0,
+                } for u in users
+            }
+
+    def get_doctorant_users(self) -> dict:
+        """Faqat doctorant talabalarni qaytaradi."""
+        with SessionLocal() as db:
+            users = db.query(User).filter(User.is_doctorant == True).all()
+            return {
+                u.username: {
+                    "full_name": u.full_name,
+                    "phone": u.phone,
+                    "department": u.department,
+                    "position": u.position,
+                    "registered": u.registered,
+                    "is_doctorant": True,
+                    "staff_rate": u.staff_rate if u.staff_rate is not None else 1.0,
                 } for u in users
             }
     

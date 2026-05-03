@@ -356,8 +356,11 @@ def process_telegram_updates_long_poll() -> None:
                 bot_admin_states.pop(cid_str, None)
                 try:
                     photo_bytes = build_daily_summary_chart()
-                    caption = build_daily_summary_text()
-                    _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
+                    staff_text, doc_text = build_daily_summary_text()
+                    _send_photo_to_chat(cid_str, photo_bytes, staff_text[:1020])
+                    # Doctorant hisobotini faqat main adminga yuborish
+                    if doc_text:
+                        send_telegram_to_chat(cid, doc_text)
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_main_admin_keyboard())
                 continue
@@ -405,8 +408,8 @@ def process_telegram_updates_long_poll() -> None:
                 send_telegram_to_chat(cid, "Grafik yaratilmoqda...", reply_markup=_extra_admin_keyboard())
                 try:
                     photo_bytes = build_daily_summary_chart()
-                    caption = build_daily_summary_text()
-                    _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
+                    staff_text, _ = build_daily_summary_text()
+                    _send_photo_to_chat(cid_str, photo_bytes, staff_text[:1020])
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_extra_admin_keyboard())
                 continue
@@ -488,14 +491,22 @@ def fetch_chat_ids_from_updates(limit: int = 50) -> dict:
 def notify_attendance_event(event_type: str, full_name: str, worker_id: str, record: dict) -> None:
     """
     Yuz tanilganda davomat yozilgandan keyin Telegramga qisqa xabar.
-    Faqat asosiy admin chatga yuboriladi (qo'shimcha adminlar faqat kunlik hisobot oladi).
+    Doctorant eventlar FAQAT asosiy adminga yuboriladi.
+    Asosiy xodim eventlar barcha adminlarga yuboriladi.
     """
     if not settings.TELEGRAM_NOTIFY_ATTENDANCE:
         return
     if not is_telegram_ready():
         return
+
+    # Doctorant yoki asosiy xodimligini aniqlash
+    from app.services.user_db import user_db
+    user_info = user_db.get_user(worker_id) or {}
+    is_doc = user_info.get("is_doctorant", False)
+
     fn = html.escape(str(full_name or worker_id))
     wid = html.escape(str(worker_id))
+    doc_label = "🎓 " if is_doc else ""
     try:
         if event_type == "check_in":
             cin = record.get("check_in_time")
@@ -503,11 +514,14 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
             if cin:
                 t = datetime.fromisoformat(cin).strftime("%H:%M:%S")
             text = (
-                f"🟢 <b>Kelish</b>\n"
+                f"🟢 <b>{doc_label}Kelish</b>\n"
                 f"👤 {fn} <code>{wid}</code>\n"
                 f"⏰ {t}"
             )
-            broadcast_to_all(text, parse_mode="HTML")
+            if is_doc:
+                broadcast_to_main_only(text, parse_mode="HTML")
+            else:
+                broadcast_to_all(text, parse_mode="HTML")
         elif event_type == "check_out":
             cin_s = record.get("check_in_time")
             cout_s = record.get("check_out_time")
@@ -527,13 +541,16 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 m, _ = divmod(r, 60)
                 wt = f"{h}h {m}m"
             text = (
-                f"🔵 <b>Ketish</b>\n"
+                f"🔵 <b>{doc_label}Ketish</b>\n"
                 f"👤 {fn}\n"
                 f"⏰ Ketgan: {cout_disp}\n"
                 f"Kelgan: {cin_disp}\n"
                 f"📊 Ishlangan: {wt}"
             )
-            broadcast_to_all(text, parse_mode="HTML")
+            if is_doc:
+                broadcast_to_main_only(text, parse_mode="HTML")
+            else:
+                broadcast_to_all(text, parse_mode="HTML")
     except Exception as e:
         print(f"Telegram attendance notify: {e}")
 
@@ -588,7 +605,12 @@ def send_telegram_message_result(text: str, parse_mode=None) -> dict:
         return {"ok": False, "error": str(e)}
 
 
-def build_daily_summary_text() -> str:
+def build_daily_summary_text() -> tuple:
+    """Kunlik xulosa matnini yaratadi.
+    Qaytaradi: (staff_text, doctorant_text)
+    staff_text — barcha adminlarga yuboriladi
+    doctorant_text — faqat asosiy adminga yuboriladi (None bo'lishi mumkin)
+    """
     from app.services.attendance_db import attendance_db
     from app.services.user_db import user_db
     from app.services.holidays_db import holidays_db
@@ -602,17 +624,22 @@ def build_daily_summary_text() -> str:
     else:
         header = f"📅 Kunlik xulosa — {today_iso}\n\n"
 
-    users = user_db.get_all_users()
+    all_users = user_db.get_all_users()
+    staff_users = {k: v for k, v in all_users.items() if not v.get("is_doctorant", False)}
+    doc_users = {k: v for k, v in all_users.items() if v.get("is_doctorant", False)}
     records = attendance_db.get_records_by_date(today_iso)
     sched = load_schedule()
 
+    # === ASOSIY XODIMLAR HISOBOTI ===
     lines = [header]
     lines.append(f"⏰ Ish vaqti: {sched.get('work_start')} – {sched.get('work_end')}\n")
-    lines.append(f"👥 Ro'yxatdagilar: {len(users)} | 📝 Bugungi yozuvlar: {len(records)}\n")
+    lines.append(f"👥 Asosiy xodimlar: {len(staff_users)} | 📝 Bugungi yozuvlar: {sum(1 for w in records if w in staff_users)}\n")
 
     present_names = []
     late_n = 0
     for worker_id, rec in records.items():
+        if worker_id not in staff_users:
+            continue  # Doctorantlarni o'tkazib yuborish
         info = user_db.get_user(worker_id) or {}
         name = info.get("full_name", worker_id)
         cin_s = rec.get("check_in_time")
@@ -631,7 +658,7 @@ def build_daily_summary_text() -> str:
         lines.append("Hozircha kelganlar yo'q.\n")
 
     if not hol:
-        absent = [uid for uid in users if uid not in records]
+        absent = [uid for uid in staff_users if uid not in records]
         lines.append(f"\n🔴 Kelmaganlar: {len(absent)}")
         if absent:
             for uid in sorted(absent)[:40]:
@@ -641,8 +668,33 @@ def build_daily_summary_text() -> str:
                 lines.append(f"  … va yana {len(absent) - 40} kishi")
 
     lines.append(f"\n🟠 Kechikkanlar (taxminan): {late_n}")
+    staff_text = "\n".join(lines)
 
-    return "\n".join(lines)
+    # === DOCTORANTLAR HISOBOTI (faqat main admin uchun) ===
+    doctorant_text = None
+    if doc_users:
+        doc_lines = [f"\n🎓 Doctorantlar hisoboti — {today_iso}\n"]
+        doc_lines.append(f"👥 Jami: {len(doc_users)}\n")
+        doc_present = []
+        doc_absent = []
+        for uid, udata in doc_users.items():
+            name = udata.get("full_name", uid)
+            if uid in records:
+                rec = records[uid]
+                cin_s = rec.get("check_in_time")
+                cin_dt = datetime.fromisoformat(cin_s) if cin_s else None
+                cin_disp = cin_dt.strftime("%H:%M") if cin_dt else "—"
+                doc_present.append(f"  • {name}: {cin_disp}")
+            else:
+                doc_absent.append(f"  • {name}")
+
+        if doc_present:
+            doc_lines.append(f"✅ Kelganlar ({len(doc_present)}):\n" + "\n".join(sorted(doc_present)))
+        if doc_absent and not hol:
+            doc_lines.append(f"\n🔴 Kelmaganlar ({len(doc_absent)}):\n" + "\n".join(sorted(doc_absent)))
+        doctorant_text = "\n".join(doc_lines)
+
+    return staff_text, doctorant_text
 
 
 # ── Grafik (Pillow) ─────────────────────────────────────────────────────────
@@ -660,15 +712,18 @@ def build_daily_summary_chart() -> bytes:
 
     today = date.today()
     today_iso = today.isoformat()
-    users = user_db.get_all_users()
+    all_users = user_db.get_all_users()
+    # Faqat asosiy xodimlarni hisoblash (doctorantlarni chiqarish)
+    staff_users = {k: v for k, v in all_users.items() if not v.get("is_doctorant", False)}
     records = attendance_db.get_records_by_date(today_iso)
     sched = load_schedule()
 
-    total = len(users)
-    present_ids = set(records.keys())
+    total = len(staff_users)
+    present_ids = set(wid for wid in records.keys() if wid in staff_users)
     late_n = 0
     on_time_n = 0
-    for wid, rec in records.items():
+    for wid in present_ids:
+        rec = records[wid]
         cin_s = rec.get("check_in_time")
         cout_s = rec.get("check_out_time")
         cin_dt = datetime.fromisoformat(cin_s) if cin_s else None
@@ -844,11 +899,16 @@ def send_daily_summary_with_chart() -> dict:
     except Exception as e:
         print(f"Chart generation error: {e}")
         # Fallback: faqat matn
-        text = build_daily_summary_text()
-        return broadcast_to_all(text)
+        staff_text, doc_text = build_daily_summary_text()
+        result = broadcast_to_all(staff_text)
+        # Doctorant hisobotini faqat main adminga yuborish
+        if doc_text:
+            broadcast_to_main_only(doc_text)
+        return result
 
-    caption = build_daily_summary_text()
+    staff_text, doc_text = build_daily_summary_text()
     # Telegram caption limit 1024 belgi
+    caption = staff_text
     if len(caption) > 1024:
         caption = caption[:1020] + "..."
 
@@ -868,5 +928,9 @@ def send_daily_summary_with_chart() -> dict:
             sent += 1
         else:
             errors.append(f"{cid}: {r.get('error', '?')}")
+
+    # Doctorant hisobotini faqat main adminga yuborish
+    if doc_text:
+        broadcast_to_main_only(doc_text)
 
     return {"ok": sent > 0, "sent": sent, "errors": errors}

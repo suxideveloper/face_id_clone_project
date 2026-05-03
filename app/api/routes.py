@@ -470,12 +470,18 @@ async def daily_report(request: Request):
     today_iso = today_d.isoformat()
     holiday_label = holidays_db.get_label(today_iso)
 
-    present_users = []
-    absent_users = []
+    # Asosiy xodimlar va doctorantlar uchun alohida ro'yxatlar
+    present_staff = []
+    absent_staff = []
+    present_doctorant = []
+    absent_doctorant = []
 
     work_start_dt, work_end_dt = work_bounds_for_date(today_d)
 
     for name, user_data in users.items():
+        is_doc = user_data.get("is_doctorant", False)
+        staff_rate = user_data.get("staff_rate", 1.0)
+
         if name in today_records:
             record = today_records[name]
             check_in_str = record.get("check_in_time", "")
@@ -501,28 +507,43 @@ async def daily_report(request: Request):
             status_label = st["label"]
             status_type = st["type"]
 
-            present_users.append({
+            entry = {
                 "username": name,
                 "full_name": user_data.get("full_name", name),
                 "department": user_data.get("department", "Unassigned"),
                 "check_in_time": check_in_str,
                 "check_out_time": check_out_str,
                 "status_label": status_label,
-                "status_type": status_type
-            })
+                "status_type": status_type,
+                "staff_rate": staff_rate,
+                "is_doctorant": is_doc,
+            }
+
+            if is_doc:
+                present_doctorant.append(entry)
+            else:
+                present_staff.append(entry)
         else:
             if not holiday_label:
-                absent_users.append({
+                absent_entry = {
                     "username": name,
                     "full_name": user_data.get("full_name", name),
-                    "department": user_data.get("department", "Unassigned")
-                })
+                    "department": user_data.get("department", "Unassigned"),
+                    "staff_rate": staff_rate,
+                    "is_doctorant": is_doc,
+                }
+                if is_doc:
+                    absent_doctorant.append(absent_entry)
+                else:
+                    absent_staff.append(absent_entry)
 
     return templates.TemplateResponse(request=request, name="daily_report.html", context= {
         "request": request,
         "user": user,
-        "present_users": present_users,
-        "absent_users": absent_users,
+        "present_users": present_staff,
+        "absent_users": absent_staff,
+        "present_doctorant": present_doctorant,
+        "absent_doctorant": absent_doctorant,
         "today_date": today_iso,
         "holiday_label": holiday_label,
         "work_start": work_start_dt.strftime("%H:%M"),
@@ -548,10 +569,16 @@ async def export_daily_report_excel(request: Request):
 
     work_start_dt, work_end_dt = work_bounds_for_date(today_d)
 
-    present_users = []
-    absent_users = []
+    # Xodimlar va doctorantlarni ajratish
+    present_staff = []
+    absent_staff = []
+    present_doc = []
+    absent_doc = []
 
     for name, user_data in users.items():
+        is_doc = user_data.get("is_doctorant", False)
+        staff_rate = user_data.get("staff_rate", 1.0)
+
         if name in today_records:
             record = today_records[name]
             check_in_str = record.get("check_in_time", "")
@@ -575,76 +602,88 @@ async def export_daily_report_excel(request: Request):
 
             st = classify_attendance_status(check_in_dt, check_out_dt, today_d)
 
-            present_users.append({
+            entry = {
                 "username": name,
                 "full_name": user_data.get("full_name", name),
                 "department": user_data.get("department", "Unassigned"),
                 "check_in_time": check_in_str,
                 "check_out_time": check_out_str,
                 "status_label": st["label"],
-            })
+                "staff_rate": staff_rate,
+            }
+
+            if is_doc:
+                present_doc.append(entry)
+            else:
+                present_staff.append(entry)
         else:
             if not holiday_label:
-                absent_users.append({
+                absent_entry = {
                     "username": name,
                     "full_name": user_data.get("full_name", name),
                     "department": user_data.get("department", "Unassigned"),
-                })
+                    "staff_rate": staff_rate,
+                }
+                if is_doc:
+                    absent_doc.append(absent_entry)
+                else:
+                    absent_staff.append(absent_entry)
 
     wb = Workbook()
-    ws = wb.active
-    ws.title = "Kunlik hisobot"
 
-    # Title row
-    ws.merge_cells("A1:F1")
+    # ====== SHEET 1: Asosiy xodimlar ======
+    ws = wb.active
+    ws.title = "Asosiy xodimlar"
+
+    ws.merge_cells("A1:G1")
     title_cell = ws["A1"]
     title_cell.value = f"Kunlik hisobot — {today_iso} (Grafik: {work_start_dt.strftime('%H:%M')} – {work_end_dt.strftime('%H:%M')})"
     title_cell.font = Font(bold=True, size=14)
     title_cell.alignment = Alignment(horizontal="center")
 
-    # Present users section
     row = 3
     ws.cell(row=row, column=1, value="KELGANLAR").font = Font(bold=True, size=12, color="166534")
     row += 1
 
     header_fill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
-    headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Kelgan vaqti", "Holati"]
+    headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Stavka", "Kelgan vaqti", "Holati"]
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=row, column=col, value=h)
         cell.font = Font(bold=True, size=10)
         cell.fill = header_fill
     row += 1
 
-    for i, p in enumerate(present_users, 1):
+    for i, p in enumerate(present_staff, 1):
         ws.cell(row=row, column=1, value=i)
         ws.cell(row=row, column=2, value=p["username"])
         ws.cell(row=row, column=3, value=p["full_name"])
         ws.cell(row=row, column=4, value=p["department"])
-        ws.cell(row=row, column=5, value=p["check_in_time"])
-        ws.cell(row=row, column=6, value=p["status_label"])
+        ws.cell(row=row, column=5, value=p["staff_rate"])
+        ws.cell(row=row, column=6, value=p["check_in_time"])
+        ws.cell(row=row, column=7, value=p["status_label"])
         row += 1
 
-    # Absent users section
     row += 1
     ws.cell(row=row, column=1, value="KELMAGANLAR").font = Font(bold=True, size=12, color="B91C1C")
     row += 1
 
-    absent_headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Holati"]
+    absent_headers = ["#", "Xodim ID", "To'liq ism", "Bo'lim", "Stavka", "Holati"]
     for col, h in enumerate(absent_headers, 1):
         cell = ws.cell(row=row, column=col, value=h)
         cell.font = Font(bold=True, size=10)
         cell.fill = header_fill
     row += 1
 
-    for i, a in enumerate(absent_users, 1):
+    for i, a in enumerate(absent_staff, 1):
         ws.cell(row=row, column=1, value=i)
         ws.cell(row=row, column=2, value=a["username"])
         ws.cell(row=row, column=3, value=a["full_name"])
         ws.cell(row=row, column=4, value=a["department"])
-        ws.cell(row=row, column=5, value="Kelmagan")
+        ws.cell(row=row, column=5, value=a["staff_rate"])
+        ws.cell(row=row, column=6, value="Kelmagan")
         row += 1
 
-    # Auto-width columns
+    # Auto-width
     for col in ws.columns:
         max_length = 0
         column_letter = None
@@ -655,6 +694,66 @@ async def export_daily_report_excel(request: Request):
                 max_length = max(max_length, len(str(cell.value)))
         if column_letter:
             ws.column_dimensions[column_letter].width = min(max_length + 4, 40)
+
+    # ====== SHEET 2: Doctorantlar ======
+    if present_doc or absent_doc:
+        ws2 = wb.create_sheet(title="Doctorantlar")
+
+        ws2.merge_cells("A1:G1")
+        t2 = ws2["A1"]
+        t2.value = f"🎓 Doctorantlar hisoboti — {today_iso}"
+        t2.font = Font(bold=True, size=14)
+        t2.alignment = Alignment(horizontal="center")
+
+        row = 3
+        doc_fill = PatternFill(start_color="EDE9FE", end_color="EDE9FE", fill_type="solid")
+
+        if present_doc:
+            ws2.cell(row=row, column=1, value="KELGAN DOCTORANTLAR").font = Font(bold=True, size=12, color="7C3AED")
+            row += 1
+            for col, h in enumerate(["#", "ID", "Ism", "Bo'lim", "Stavka", "Kelgan", "Holati"], 1):
+                cell = ws2.cell(row=row, column=col, value=h)
+                cell.font = Font(bold=True, size=10)
+                cell.fill = doc_fill
+            row += 1
+            for i, p in enumerate(present_doc, 1):
+                ws2.cell(row=row, column=1, value=i)
+                ws2.cell(row=row, column=2, value=p["username"])
+                ws2.cell(row=row, column=3, value=p["full_name"])
+                ws2.cell(row=row, column=4, value=p["department"])
+                ws2.cell(row=row, column=5, value=p["staff_rate"])
+                ws2.cell(row=row, column=6, value=p["check_in_time"])
+                ws2.cell(row=row, column=7, value=p["status_label"])
+                row += 1
+
+        if absent_doc:
+            row += 1
+            ws2.cell(row=row, column=1, value="KELMAGAN DOCTORANTLAR").font = Font(bold=True, size=12, color="B91C1C")
+            row += 1
+            for col, h in enumerate(["#", "ID", "Ism", "Bo'lim", "Stavka", "Holati"], 1):
+                cell = ws2.cell(row=row, column=col, value=h)
+                cell.font = Font(bold=True, size=10)
+                cell.fill = doc_fill
+            row += 1
+            for i, a in enumerate(absent_doc, 1):
+                ws2.cell(row=row, column=1, value=i)
+                ws2.cell(row=row, column=2, value=a["username"])
+                ws2.cell(row=row, column=3, value=a["full_name"])
+                ws2.cell(row=row, column=4, value=a["department"])
+                ws2.cell(row=row, column=5, value=a["staff_rate"])
+                ws2.cell(row=row, column=6, value="Kelmagan")
+                row += 1
+
+        for col in ws2.columns:
+            max_length = 0
+            column_letter = None
+            for cell in col:
+                if hasattr(cell, 'column_letter'):
+                    column_letter = cell.column_letter
+                if cell.value:
+                    max_length = max(max_length, len(str(cell.value)))
+            if column_letter:
+                ws2.column_dimensions[column_letter].width = min(max_length + 4, 40)
 
     buf = BytesIO()
     wb.save(buf)
@@ -680,9 +779,11 @@ async def admin_dashboard(request: Request):
     
     # --- Statistics Calculation ---
     
-    # 1. Total Employees
-    # specific to user_db based on how list_users does it
-    total_employees = len(user_db.get_all_users())
+    # 1. Total Employees (faqat asosiy xodimlar, doctorantlarni chiqarib tashlash)
+    staff_users = user_db.get_staff_users()
+    total_employees = len(staff_users)
+    doctorant_users = user_db.get_doctorant_users()
+    total_doctorants = len(doctorant_users)
     
     # 2. Attendance Stats
     now = datetime.now()
@@ -696,14 +797,14 @@ async def admin_dashboard(request: Request):
         # Get all records since start_date
         records = attendance_db.get_all_records(start_date=start_date)
         
-        # Count records (assuming one record per person per day is what we want to count)
-        count = len(records)
+        # Faqat asosiy xodimlarni hisoblash
+        count = sum(1 for r in records if r["worker_id"] in staff_users)
         return count
 
     weekly_attendance = count_checkins_since(7)
     monthly_attendance = count_checkins_since(30)
     
-    # Calculate Attendance Percentage (vs Total Employees)
+    # Calculate Attendance Percentage (vs Total Staff Employees)
     attendance_rate = 0
     present_count = 0
     late_count = 0
@@ -713,11 +814,14 @@ async def admin_dashboard(request: Request):
     if total_employees > 0:
         # Get unique workers today
         today_records = attendance_db.get_all_today()
-        present_count = len(today_records)
+        # Faqat asosiy xodimlarni hisoblash
+        present_count = sum(1 for name in today_records if name in staff_users)
         attendance_rate = int((present_count / total_employees) * 100)
         
         ws, _we = work_bounds_for_date(today_date)
         for name, record in today_records.items():
+            if name not in staff_users:
+                continue  # Doctorantlarni o'tkazib yuborish
             check_in_str = record.get("check_in_time")
             if check_in_str:
                 try:
@@ -737,7 +841,7 @@ async def admin_dashboard(request: Request):
     # 3. Growth (Today vs Yesterday)
     yesterday_date = (today_date - timedelta(days=1)).isoformat()
     yesterday_records = attendance_db.get_records_by_date(yesterday_date)
-    yesterday_count = len(yesterday_records)
+    yesterday_count = sum(1 for name in yesterday_records if name in staff_users)
     
     attendance_growth = 0
     if yesterday_count > 0:
@@ -749,6 +853,7 @@ async def admin_dashboard(request: Request):
         "request": request, 
         "user": user,
         "total_employees": total_employees,
+        "total_doctorants": total_doctorants,
         "stats": {
             "present": present_count,
             "late": late_count,
@@ -1189,7 +1294,9 @@ async def complete_registration(
     full_name: str = Form(""),
     phone: str = Form(""),
     department: str = Form(""),
-    position: str = Form("")
+    position: str = Form(""),
+    is_doctorant: str = Form("false"),
+    staff_rate: str = Form("1.0")
 ):
     """Step 2: Complete registration with captured images and user details"""
     
@@ -1202,13 +1309,22 @@ async def complete_registration(
     
     images = captured_faces_temp[name]
     
+    # Parse doctorant checkbox va staff_rate
+    doc_flag = is_doctorant.lower() in ("true", "1", "on", "yes")
+    try:
+        rate_val = float(staff_rate)
+    except (ValueError, TypeError):
+        rate_val = 1.0
+    
     try:
         # Create user record FIRST (face_encodings has FK to users)
         user_db.create_user(name, {
             "full_name": full_name,
             "phone": phone,
             "department": department,
-            "position": position
+            "position": position,
+            "is_doctorant": doc_flag,
+            "staff_rate": rate_val,
         })
 
         success = await asyncio.to_thread(recognizer.register_user, name, images)
@@ -1255,7 +1371,9 @@ async def list_users(request: Request):
             "full_name": user_info.get("full_name", name),
             "phone": user_info.get("phone", ""),
             "department": user_info.get("department", ""),
-            "position": user_info.get("position", "")
+            "position": user_info.get("position", ""),
+            "is_doctorant": user_info.get("is_doctorant", False),
+            "staff_rate": user_info.get("staff_rate", 1.0),
         })
     return templates.TemplateResponse(request=request, name="users.html", context= {"request": request, "users": users_data, "departments": departments_db.get_all()})
 
@@ -1307,16 +1425,28 @@ async def update_user(
     full_name: str = Form(""),
     phone: str = Form(""),
     department: str = Form(""),
-    position: str = Form("")
+    position: str = Form(""),
+    is_doctorant: str = Form("false"),
+    staff_rate: str = Form("1.0")
 ):
     user = get_current_admin(request)
     if not user or user.get("role") != "admin":
         return JSONResponse(status_code=403, content={"message": "Unauthorized"})
+    
+    # Parse doctorant checkbox va staff_rate
+    doc_flag = is_doctorant.lower() in ("true", "1", "on", "yes")
+    try:
+        rate_val = float(staff_rate)
+    except (ValueError, TypeError):
+        rate_val = 1.0
+    
     success = user_db.update_user(name, {
         "full_name": full_name,
         "phone": phone,
         "department": department,
-        "position": position
+        "position": position,
+        "is_doctorant": doc_flag,
+        "staff_rate": rate_val,
     })
     if success:
         return JSONResponse(content={"message": f"User {name} updated successfully."})
@@ -1326,7 +1456,9 @@ async def update_user(
             "full_name": full_name,
             "phone": phone,
             "department": department,
-            "position": position
+            "position": position,
+            "is_doctorant": doc_flag,
+            "staff_rate": rate_val,
         })
         return JSONResponse(content={"message": f"User {name} profile created."})
 
@@ -1624,17 +1756,31 @@ async def attendance_page(request: Request):
         worker_id = record["worker_id"]
         user_info = user_db.get_user(worker_id)
         is_known = (user_info is not None)
+        is_doc = user_info.get("is_doctorant", False) if user_info else False
+        staff_rate = user_info.get("staff_rate", 1.0) if user_info else 1.0
         
-        # Calculate Working Hours
+        # Calculate Working Hours (with abet deduction)
         working_hours = "-"
+        net_hours = "-"
+        abet_applied = False
         if record.get("check_in_time") and record.get("check_out_time"):
             try:
                 cin = datetime.fromisoformat(record["check_in_time"])
                 cout = datetime.fromisoformat(record["check_out_time"])
-                dt = cout - cin
-                h, r = divmod(dt.seconds, 3600)
+                total_seconds = int((cout - cin).total_seconds())
+                h, r = divmod(total_seconds, 3600)
                 m, _ = divmod(r, 60)
                 working_hours = f"{h}h {m}m"
+                
+                # Abet chegirim: faqat asosiy xodimlar (doctorant emas) va stavka >= 1.0
+                if not is_doc and staff_rate >= 1.0:
+                    abet_seconds = max(0, total_seconds - 3600)  # 1 soat = 3600 sek
+                    ah, ar = divmod(abet_seconds, 3600)
+                    am, _ = divmod(ar, 60)
+                    net_hours = f"{ah}h {am}m"
+                    abet_applied = True
+                else:
+                    net_hours = working_hours
             except:
                 pass
         
@@ -1648,6 +1794,10 @@ async def attendance_page(request: Request):
             "check_in_snapshot": record.get("check_in_snapshot"),
             "check_out_snapshot": record.get("check_out_snapshot"),
             "working_hours": working_hours,
+            "net_hours": net_hours,
+            "abet_applied": abet_applied,
+            "staff_rate": staff_rate,
+            "is_doctorant": is_doc,
             "is_known": is_known
         })
     
@@ -1686,8 +1836,12 @@ async def get_all_attendance(
     for record in raw_records:
         worker_id = record["worker_id"]
         user_info = user_db.get_user(worker_id) or {}
+        is_doc = user_info.get("is_doctorant", False)
+        staff_rate = user_info.get("staff_rate", 1.0)
 
         working_hours = "-"
+        net_hours = "-"
+        abet_applied = False
         if record.get("check_in_time") and record.get("check_out_time"):
             try:
                 cin = datetime.fromisoformat(record["check_in_time"])
@@ -1697,6 +1851,16 @@ async def get_all_attendance(
                     h, r = divmod(total_sec, 3600)
                     m, _ = divmod(r, 60)
                     working_hours = f"{h}h {m}m"
+                    
+                    # Abet chegirim
+                    if not is_doc and staff_rate >= 1.0:
+                        abet_sec = max(0, total_sec - 3600)
+                        ah, ar = divmod(abet_sec, 3600)
+                        am, _ = divmod(ar, 60)
+                        net_hours = f"{ah}h {am}m"
+                        abet_applied = True
+                    else:
+                        net_hours = working_hours
             except Exception:
                 pass
 
@@ -1729,6 +1893,10 @@ async def get_all_attendance(
             if record.get("check_out_time")
             else "-",
             "working_hours": working_hours,
+            "net_hours": net_hours,
+            "abet_applied": abet_applied,
+            "staff_rate": staff_rate,
+            "is_doctorant": is_doc,
             "status_label": st["label"],
             "late": st["late"],
             "early_leave": st["early_leave"],
