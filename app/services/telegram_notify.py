@@ -214,6 +214,28 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None, reply_markup=None
 
 bot_admin_states = {}
 
+
+def _main_admin_keyboard() -> dict:
+    """Asosiy admin uchun reply keyboard."""
+    return {
+        "keyboard": [
+            [{"text": "➕ Admin qo'shish"}, {"text": "👥 Adminlar"}],
+            [{"text": "📊 Kunlik hisobot yuborish"}]
+        ],
+        "resize_keyboard": True
+    }
+
+
+def _extra_admin_keyboard() -> dict:
+    """Qo'shimcha admin uchun reply keyboard."""
+    return {
+        "keyboard": [
+            [{"text": "📊 Kunlik hisobot yuborish"}]
+        ],
+        "resize_keyboard": True
+    }
+
+
 def _answer_callback_query(callback_query_id: str, text: str = "") -> dict:
     """Telegram callback_query ga javob beradi (loading spinner o'chirish uchun)."""
     params = {"callback_query_id": callback_query_id}
@@ -306,21 +328,10 @@ def process_telegram_updates_long_poll() -> None:
             keyboard = None
             if is_main_admin:
                 body += "Siz asosiy adminsiz. Boshqaruv tugmalari orqali botni sozlang:"
-                keyboard = {
-                    "keyboard": [
-                        [{"text": "➕ Admin qo'shish"}, {"text": "👥 Adminlar"}],
-                        [{"text": "📊 Kunlik hisobot yuborish"}]
-                    ],
-                    "resize_keyboard": True
-                }
+                keyboard = _main_admin_keyboard()
             elif is_extra_admin:
                 body += "Siz admin sifatida qo'shilgansiz. Kunlik hisobotni ko'rishingiz mumkin."
-                keyboard = {
-                    "keyboard": [
-                        [{"text": "📊 Kunlik hisobot yuborish"}]
-                    ],
-                    "resize_keyboard": True
-                }
+                keyboard = _extra_admin_keyboard()
             else:
                 body += "Admin panel → <b>Sozlamalar</b> da shu ID ni «Chat ID ni saqlash» orqali qo'shing."
                 
@@ -332,7 +343,7 @@ def process_telegram_updates_long_poll() -> None:
         if is_main_admin:
             if text == "➕ Admin qo'shish":
                 bot_admin_states[cid_str] = "WAITING_ADMIN_ID"
-                send_telegram_to_chat(cid, "Yangi adminning <b>Chat ID</b> sini yuboring:\n(U avval botga /start yuborgan bo'lishi kerak)", parse_mode="HTML")
+                send_telegram_to_chat(cid, "Yangi adminning <b>Chat ID</b> sini yuboring:\n(U avval botga /start yuborgan bo'lishi kerak)", parse_mode="HTML", reply_markup=_main_admin_keyboard())
                 continue
                 
             elif text == "👥 Adminlar":
@@ -341,21 +352,21 @@ def process_telegram_updates_long_poll() -> None:
                 continue
                 
             elif text == "📊 Kunlik hisobot yuborish":
-                send_telegram_to_chat(cid, "Grafik yaratilmoqda...")
+                send_telegram_to_chat(cid, "Grafik yaratilmoqda...", reply_markup=_main_admin_keyboard())
                 bot_admin_states.pop(cid_str, None)
                 try:
                     photo_bytes = build_daily_summary_chart()
                     caption = build_daily_summary_text()
                     _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
                 except Exception as e:
-                    send_telegram_to_chat(cid, f"Xato: {e}")
+                    send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_main_admin_keyboard())
                 continue
                 
             elif bot_admin_states.get(cid_str) == "WAITING_ADMIN_ID":
                 new_admin_id = text.strip()
                 entries = get_extra_chat_ids()
                 if any(str(e.get("chat_id")) == new_admin_id for e in entries):
-                    send_telegram_to_chat(cid, "⚠️ Bu Chat ID allaqachon qo'shilgan!")
+                    send_telegram_to_chat(cid, "⚠️ Bu Chat ID allaqachon qo'shilgan!", reply_markup=_main_admin_keyboard())
                 else:
                     # Telegram getChat orqali username va ismni olish
                     chat_info = _get_chat_info(new_admin_id)
@@ -372,14 +383,18 @@ def process_telegram_updates_long_poll() -> None:
                     entries.append(entry)
                     save_extra_chat_ids(entries)
                     
-                    display = f"@{username}" if username else full_name
+                    # Display: full name asosiy, @username qo'shimcha
+                    name_line = html.escape(full_name)
+                    if username:
+                        name_line += f" (@{html.escape(username)})"
                     send_telegram_to_chat(
                         cid,
                         f"✅ Admin muvaffaqiyatli qo'shildi:\n"
-                        f"👤 {html.escape(display)}\n"
+                        f"👤 {name_line}\n"
                         f"🆔 <code>{new_admin_id}</code>\n"
                         f"U endi kunlik hisobotni oladi.",
-                        parse_mode="HTML"
+                        parse_mode="HTML",
+                        reply_markup=_main_admin_keyboard()
                     )
                 bot_admin_states.pop(cid_str, None)
                 continue
@@ -387,13 +402,13 @@ def process_telegram_updates_long_poll() -> None:
         # Qo'shimcha admin buyruqlari (faqat kunlik hisobot)
         if is_extra_admin:
             if text == "📊 Kunlik hisobot yuborish":
-                send_telegram_to_chat(cid, "Grafik yaratilmoqda...")
+                send_telegram_to_chat(cid, "Grafik yaratilmoqda...", reply_markup=_extra_admin_keyboard())
                 try:
                     photo_bytes = build_daily_summary_chart()
                     caption = build_daily_summary_text()
                     _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
                 except Exception as e:
-                    send_telegram_to_chat(cid, f"Xato: {e}")
+                    send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_extra_admin_keyboard())
                 continue
 
     max_id = max(u["update_id"] for u in updates) + 1
@@ -401,24 +416,31 @@ def process_telegram_updates_long_poll() -> None:
 
 
 def _send_admin_list(chat_id: str) -> None:
-    """Adminlar ro'yxatini inline o'chirish tugmalari bilan yuboradi."""
+    """Adminlar ro'yxatini inline o'chirish tugmalari bilan yuboradi.
+    Avval reply keyboard qaytariladi, keyin inline buttonlar bilan ro'yxat."""
     mgrs = get_extra_chat_ids()
     if not mgrs:
-        send_telegram_to_chat(chat_id, "Hozircha qo'shimcha adminlar yo'q.")
+        send_telegram_to_chat(chat_id, "Hozircha qo'shimcha adminlar yo'q.", reply_markup=_main_admin_keyboard())
         return
+    
+    # Avval reply keyboardni qaytarish (yo'qolmasligi uchun)
+    send_telegram_to_chat(chat_id, "👥 Adminlar ro'yxati:", reply_markup=_main_admin_keyboard())
     
     lines = ["<b>Qo'shimcha adminlar:</b>\n"]
     inline_buttons = []
     for m in mgrs:
         username = m.get("username", "")
         label = m.get("label", m.get("chat_id"))
-        display = f"@{username}" if username else label
-        lines.append(f"👤 {html.escape(display)}")
+        # Full name asosiy, @username qo'shimcha
+        display_name = html.escape(str(label))
+        if username:
+            display_name += f" (@{html.escape(username)})"
+        lines.append(f"👤 {display_name}")
         
-        # Inline tugma - o'chirish
-        btn_text = f"❌ {display}"
+        # Inline tugma - o'chirish (qisqa nom)
+        btn_label = label if len(str(label)) <= 20 else str(label)[:20] + "…"
         inline_buttons.append(
-            [{"text": btn_text, "callback_data": f"rm_admin:{m.get('chat_id')}"}]
+            [{"text": f"❌ {btn_label}", "callback_data": f"rm_admin:{m.get('chat_id')}"}]
         )
     
     reply_markup = {"inline_keyboard": inline_buttons}
