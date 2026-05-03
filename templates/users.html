@@ -35,7 +35,6 @@
                     <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
                 </th>
                 <th>#</th>
-                <th>User ID</th>
                 <th>Ism Familiya</th>
                 <th>Telefon</th>
                 <th>Bo'lim</th>
@@ -52,8 +51,7 @@
                     <input type="checkbox" class="user-checkbox" value="{{ user.id }}" onchange="updateBulkCount()">
                 </td>
                 <td>{{ loop.index }}</td>
-                <td><a href="/users/{{ user.id }}" class="user-link">{{ user.id }}</a></td>
-                <td>{{ user.full_name or '—' }}</td>
+                <td><a href="/users/{{ user.id }}" class="user-link">{{ user.full_name or '—' }}</a></td>
                 <td>{{ user.phone or '—' }}</td>
                 <td>
                     {% if user.department %}
@@ -85,7 +83,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="10" class="text-center" style="padding: 40px; color: var(--text-light);">
+                <td colspan="9" class="text-center" style="padding: 40px; color: var(--text-light);">
                     No employees registered yet. <a href="/register" style="color: var(--primary);">Register the first
                         one!</a>
                 </td>
@@ -352,10 +350,10 @@
         let visibleRows = [];
 
         allUserRows.forEach(row => {
-            const userId = row.querySelector('.user-link').textContent.toLowerCase();
-            const fullName = row.cells[3].textContent.toLowerCase();
-            const phone = row.cells[4].textContent.toLowerCase();
-            const deptText = row.cells[5].textContent.trim().toLowerCase();
+            const userId = row.getAttribute('data-user-id').toLowerCase();
+            const fullName = row.cells[2].textContent.toLowerCase();
+            const phone = row.cells[3].textContent.toLowerCase();
+            const deptText = row.cells[4].textContent.trim().toLowerCase();
             const userType = row.getAttribute('data-user-type') || 'staff';
 
             const matchesSearch = userId.includes(searchTerm) || fullName.includes(searchTerm) || phone.includes(searchTerm);
@@ -391,7 +389,7 @@
             if (!noDataRow) {
                 noDataRow = document.createElement('tr');
                 noDataRow.id = 'noDataRow';
-                noDataRow.innerHTML = '<td colspan="8" class="text-center" style="padding: 40px; color: var(--text-light);">No records found matching your search.</td>';
+                noDataRow.innerHTML = '<td colspan="9" class="text-center" style="padding: 40px; color: var(--text-light);">No records found matching your search.</td>';
                 tbody.appendChild(noDataRow);
             }
             noDataRow.style.display = '';
