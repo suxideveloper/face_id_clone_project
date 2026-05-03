@@ -9,15 +9,15 @@ from datetime import datetime, date
 from app.core.config import settings
 
 
-# ── Extra managers (multi-recipient) ────────────────────────────────────────
+# ── Extra admins (multi-recipient) ──────────────────────────────────────────
 
 def _extra_chats_file() -> str:
     return os.path.join(settings.DATA_DIR, "telegram_extra_chats.json")
 
 
 def get_extra_chat_ids() -> list:
-    """Qo'shimcha manager chat ID lar ro'yxatini qaytaradi.
-    Har bir element: {chat_id: str, label: str}"""
+    """Qo'shimcha admin chat ID lar ro'yxatini qaytaradi.
+    Har bir element: {chat_id: str, label: str, username: str}"""
     path = _extra_chats_file()
     if not os.path.isfile(path):
         return []
@@ -32,14 +32,23 @@ def get_extra_chat_ids() -> list:
 
 
 def save_extra_chat_ids(entries: list) -> None:
-    """Qo'shimcha manager chat ID larini saqlaydi."""
+    """Qo'shimcha admin chat ID larini saqlaydi."""
     os.makedirs(settings.DATA_DIR, exist_ok=True)
     with open(_extra_chats_file(), "w", encoding="utf-8") as f:
         json.dump(entries, f, ensure_ascii=False, indent=2)
 
 
+def _get_chat_info(chat_id: str) -> dict:
+    """Telegram getChat API orqali foydalanuvchi ma'lumotlarini oladi.
+    Qaytaradi: {username, first_name, ...} yoki bo'sh dict."""
+    result = _tg_api("getChat", {"chat_id": chat_id})
+    if result.get("ok"):
+        return result.get("result", {})
+    return {}
+
+
 def broadcast_to_all(text: str, parse_mode=None) -> dict:
-    """Asosiy chat + barcha qo'shimcha managerlarga xabar yuboradi.
+    """Asosiy chat + barcha qo'shimcha adminlarga xabar yuboradi.
     Natija: {ok: bool, sent: int, errors: list}"""
     main_result = send_telegram_message_result(text, parse_mode=parse_mode)
     errors = []
@@ -58,6 +67,13 @@ def broadcast_to_all(text: str, parse_mode=None) -> dict:
             errors.append(f"{cid}: {r.get('error', '?')}")
 
     return {"ok": sent > 0, "sent": sent, "errors": errors}
+
+
+def broadcast_to_main_only(text: str, parse_mode=None) -> dict:
+    """Faqat asosiy admin chatga xabar yuboradi (real-time davomat uchun).
+    Qo'shimcha adminlar faqat kunlik hisobotni oladi."""
+    main_result = send_telegram_message_result(text, parse_mode=parse_mode)
+    return main_result
 
 
 def _chat_id_file() -> str:
@@ -198,10 +214,19 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None, reply_markup=None
 
 bot_admin_states = {}
 
+def _answer_callback_query(callback_query_id: str, text: str = "") -> dict:
+    """Telegram callback_query ga javob beradi (loading spinner o'chirish uchun)."""
+    params = {"callback_query_id": callback_query_id}
+    if text:
+        params["text"] = text
+    return _tg_api("answerCallbackQuery", params)
+
+
 def process_telegram_updates_long_poll() -> None:
     """
-    Bir marta getUpdates (timeout=50) kutadi va yangilanishlarni qayta ishlaydi.
-    Main admin uchun interaktiv tugmalar (Manager qo'shish, hisobot).
+    Bir marta getUpdates (timeout=5) kutadi va yangilanishlarni qayta ishlaydi.
+    Main admin uchun interaktiv tugmalar (Admin qo'shish, hisobot).
+    Qo'shimcha adminlar faqat kunlik hisobotni ko'ra oladi.
     """
     token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
     if not token:
@@ -224,8 +249,40 @@ def process_telegram_updates_long_poll() -> None:
         return
 
     main_admin_id = get_effective_chat_id()
+    extra_admin_ids = [str(e.get("chat_id", "")).strip() for e in get_extra_chat_ids()]
 
     for u in updates:
+        # ── Callback query (inline button bosilganda) ──
+        cb = u.get("callback_query")
+        if cb:
+            cb_data = (cb.get("data") or "").strip()
+            cb_from = cb.get("from") or {}
+            cb_cid = str(cb_from.get("id", ""))
+            cb_id = cb.get("id", "")
+
+            # Faqat asosiy admin o'chira oladi
+            if cb_cid == main_admin_id and cb_data.startswith("rm_admin:"):
+                rm_chat_id = cb_data.split(":", 1)[1]
+                entries = get_extra_chat_ids()
+                removed_entry = None
+                new_entries = []
+                for e in entries:
+                    if str(e.get("chat_id")) == rm_chat_id:
+                        removed_entry = e
+                    else:
+                        new_entries.append(e)
+                if removed_entry:
+                    save_extra_chat_ids(new_entries)
+                    uname = removed_entry.get("username", removed_entry.get("label", rm_chat_id))
+                    _answer_callback_query(cb_id, f"✅ {uname} o'chirildi")
+                    # Ro'yxatni yangilash uchun yangi xabar yuborish
+                    _send_admin_list(cb_cid)
+                else:
+                    _answer_callback_query(cb_id, "⚠️ Topilmadi")
+            else:
+                _answer_callback_query(cb_id)
+            continue
+
         msg = u.get("message") or u.get("edited_message") or {}
         text = (msg.get("text") or "").strip()
         if not text:
@@ -237,6 +294,7 @@ def process_telegram_updates_long_poll() -> None:
             
         cid_str = str(cid)
         is_main_admin = (cid_str == main_admin_id)
+        is_extra_admin = (cid_str in extra_admin_ids)
 
         if text.lower().startswith("/start"):
             name = (chat.get("first_name") or chat.get("title") or "").strip()
@@ -250,7 +308,15 @@ def process_telegram_updates_long_poll() -> None:
                 body += "Siz asosiy adminsiz. Boshqaruv tugmalari orqali botni sozlang:"
                 keyboard = {
                     "keyboard": [
-                        [{"text": "➕ Manager qo'shish"}, {"text": "👥 Managerlar"}],
+                        [{"text": "➕ Admin qo'shish"}, {"text": "👥 Adminlar"}],
+                        [{"text": "📊 Kunlik hisobot yuborish"}]
+                    ],
+                    "resize_keyboard": True
+                }
+            elif is_extra_admin:
+                body += "Siz admin sifatida qo'shilgansiz. Kunlik hisobotni ko'rishingiz mumkin."
+                keyboard = {
+                    "keyboard": [
                         [{"text": "📊 Kunlik hisobot yuborish"}]
                     ],
                     "resize_keyboard": True
@@ -264,20 +330,13 @@ def process_telegram_updates_long_poll() -> None:
             
         # Asosiy admin buyruqlari
         if is_main_admin:
-            if text == "➕ Manager qo'shish":
-                bot_admin_states[cid_str] = "WAITING_MANAGER_ID"
-                send_telegram_to_chat(cid, "Yangi managerning <b>Chat ID</b> sini yuboring:\n(U avval botga /start yuborgan bo'lishi kerak)", parse_mode="HTML")
+            if text == "➕ Admin qo'shish":
+                bot_admin_states[cid_str] = "WAITING_ADMIN_ID"
+                send_telegram_to_chat(cid, "Yangi adminning <b>Chat ID</b> sini yuboring:\n(U avval botga /start yuborgan bo'lishi kerak)", parse_mode="HTML")
                 continue
                 
-            elif text == "👥 Managerlar":
-                mgrs = get_extra_chat_ids()
-                if not mgrs:
-                    send_telegram_to_chat(cid, "Hozircha qo'shimcha managerlar yo'q.")
-                else:
-                    lines = ["<b>Qo'shimcha managerlar:</b>"]
-                    for m in mgrs:
-                        lines.append(f"• {m.get('label', m.get('chat_id'))} (<code>{m.get('chat_id')}</code>)")
-                    send_telegram_to_chat(cid, "\n".join(lines), parse_mode="HTML")
+            elif text == "👥 Adminlar":
+                _send_admin_list(cid_str)
                 bot_admin_states.pop(cid_str, None)
                 continue
                 
@@ -292,20 +351,78 @@ def process_telegram_updates_long_poll() -> None:
                     send_telegram_to_chat(cid, f"Xato: {e}")
                 continue
                 
-            elif bot_admin_states.get(cid_str) == "WAITING_MANAGER_ID":
-                new_mgr_id = text.strip()
+            elif bot_admin_states.get(cid_str) == "WAITING_ADMIN_ID":
+                new_admin_id = text.strip()
                 entries = get_extra_chat_ids()
-                if any(str(e.get("chat_id")) == new_mgr_id for e in entries):
+                if any(str(e.get("chat_id")) == new_admin_id for e in entries):
                     send_telegram_to_chat(cid, "⚠️ Bu Chat ID allaqachon qo'shilgan!")
                 else:
-                    entries.append({"chat_id": new_mgr_id, "label": new_mgr_id})
+                    # Telegram getChat orqali username va ismni olish
+                    chat_info = _get_chat_info(new_admin_id)
+                    username = chat_info.get("username", "")
+                    first_name = chat_info.get("first_name", "")
+                    last_name = chat_info.get("last_name", "")
+                    full_name = f"{first_name} {last_name}".strip() or new_admin_id
+                    
+                    entry = {
+                        "chat_id": new_admin_id,
+                        "label": full_name,
+                        "username": username
+                    }
+                    entries.append(entry)
                     save_extra_chat_ids(entries)
-                    send_telegram_to_chat(cid, f"✅ Manager muvaffaqiyatli qo'shildi: <code>{new_mgr_id}</code>\nU endi xabarlarni oladi.", parse_mode="HTML")
+                    
+                    display = f"@{username}" if username else full_name
+                    send_telegram_to_chat(
+                        cid,
+                        f"✅ Admin muvaffaqiyatli qo'shildi:\n"
+                        f"👤 {html.escape(display)}\n"
+                        f"🆔 <code>{new_admin_id}</code>\n"
+                        f"U endi kunlik hisobotni oladi.",
+                        parse_mode="HTML"
+                    )
                 bot_admin_states.pop(cid_str, None)
+                continue
+
+        # Qo'shimcha admin buyruqlari (faqat kunlik hisobot)
+        if is_extra_admin:
+            if text == "📊 Kunlik hisobot yuborish":
+                send_telegram_to_chat(cid, "Grafik yaratilmoqda...")
+                try:
+                    photo_bytes = build_daily_summary_chart()
+                    caption = build_daily_summary_text()
+                    _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
+                except Exception as e:
+                    send_telegram_to_chat(cid, f"Xato: {e}")
                 continue
 
     max_id = max(u["update_id"] for u in updates) + 1
     _write_next_offset(max_id)
+
+
+def _send_admin_list(chat_id: str) -> None:
+    """Adminlar ro'yxatini inline o'chirish tugmalari bilan yuboradi."""
+    mgrs = get_extra_chat_ids()
+    if not mgrs:
+        send_telegram_to_chat(chat_id, "Hozircha qo'shimcha adminlar yo'q.")
+        return
+    
+    lines = ["<b>Qo'shimcha adminlar:</b>\n"]
+    inline_buttons = []
+    for m in mgrs:
+        username = m.get("username", "")
+        label = m.get("label", m.get("chat_id"))
+        display = f"@{username}" if username else label
+        lines.append(f"👤 {html.escape(display)}")
+        
+        # Inline tugma - o'chirish
+        btn_text = f"❌ {display}"
+        inline_buttons.append(
+            [{"text": btn_text, "callback_data": f"rm_admin:{m.get('chat_id')}"}]
+        )
+    
+    reply_markup = {"inline_keyboard": inline_buttons}
+    send_telegram_to_chat(chat_id, "\n".join(lines), parse_mode="HTML", reply_markup=reply_markup)
 
 
 def fetch_chat_ids_from_updates(limit: int = 50) -> dict:
@@ -339,7 +456,7 @@ def fetch_chat_ids_from_updates(limit: int = 50) -> dict:
 def notify_attendance_event(event_type: str, full_name: str, worker_id: str, record: dict) -> None:
     """
     Yuz tanilganda davomat yozilgandan keyin Telegramga qisqa xabar.
-    Asosiy chat + barcha qo'shimcha managerlarga yuboriladi.
+    Faqat asosiy admin chatga yuboriladi (qo'shimcha adminlar faqat kunlik hisobot oladi).
     """
     if not settings.TELEGRAM_NOTIFY_ATTENDANCE:
         return
@@ -358,7 +475,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"👤 {fn} <code>{wid}</code>\n"
                 f"⏰ {t}"
             )
-            broadcast_to_all(text, parse_mode="HTML")
+            broadcast_to_main_only(text, parse_mode="HTML")
         elif event_type == "check_out":
             cin_s = record.get("check_in_time")
             cout_s = record.get("check_out_time")
@@ -384,7 +501,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"Kelgan: {cin_disp}\n"
                 f"📊 Ishlangan: {wt}"
             )
-            broadcast_to_all(text, parse_mode="HTML")
+            broadcast_to_main_only(text, parse_mode="HTML")
     except Exception as e:
         print(f"Telegram attendance notify: {e}")
 

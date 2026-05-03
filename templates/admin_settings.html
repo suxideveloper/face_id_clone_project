@@ -97,10 +97,10 @@
 
         <hr style="border: none; border-top: 1px solid var(--border-color); margin: 24px 0;">
 
-        <h3 style="margin-bottom: 12px; font-size: 1rem;">👥 Qo'shimcha managerlar</h3>
+        <h3 style="margin-bottom: 12px; font-size: 1rem;">👥 Qo'shimcha adminlar</h3>
         <p style="color: var(--text-light); font-size: 0.85rem; margin-bottom: 14px;">
-            Bu chatlar ham barcha davomat xabarlarini va kunlik grafik hisobotni oladi.
-            Manager botga <strong>/start</strong> yuborsin, so'ng «Chat ID ni topish» orqali ID sini bilib oling.
+            Bu chatlar kunlik grafik hisobotni oladi.
+            Admin botga <strong>/start</strong> yuborsin, so'ng «Chat ID ni topish» orqali ID sini bilib oling.
         </p>
         <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 14px;">
             <input type="text" id="mgrChatId" placeholder="Chat ID (masalan 987654321)" class="form-input"
@@ -229,14 +229,14 @@
         else show(msg, (j.errors || [j.error || 'Xato']).join('; '), false);
     });
 
-    // ── Managers ──────────────────────────────────────────────────────────
+    // ── Adminlar ──────────────────────────────────────────────────────────
     async function loadManagers() {
         const list = document.getElementById('mgrList');
         const r = await fetch('/api/telegram/managers');
         const j = await r.json();
         const managers = j.managers || [];
         if (managers.length === 0) {
-            list.innerHTML = '<li style="color:var(--text-light);font-size:0.9rem;">Hozircha qo\'shimcha managerlar yo\'q.</li>';
+            list.innerHTML = '<li style="color:var(--text-light);font-size:0.9rem;">Hozircha qo\'shimcha adminlar yo\'q.</li>';
             return;
         }
         list.innerHTML = managers.map(m => `
@@ -272,7 +272,7 @@
         if (j.ok) {
             document.getElementById('mgrChatId').value = '';
             document.getElementById('mgrLabel').value = '';
-            show(msg, 'Manager qo\'shildi.', true);
+            show(msg, 'Admin qo\'shildi.', true);
             loadManagers();
         } else {
             show(msg, j.error || 'Xato', false);
@@ -280,14 +280,14 @@
     });
 
     async function removeManager(chat_id) {
-        if (!confirm('Bu managerni o\'chirish?')) return;
+        if (!confirm('Bu adminni o\'chirish?')) return;
         const r = await fetch('/api/telegram/managers/' + encodeURIComponent(chat_id), { method: 'DELETE' });
         const j = await r.json();
         if (j.ok) loadManagers();
         else alert(j.error || 'Xato');
     }
 
-    // Sahifa yuklanganda managerlarni ko'rsat
+    // Sahifa yuklanganda adminlarni ko'rsat
     loadManagers();
 </script>
 {% endblock %}

@@ -2113,7 +2113,7 @@ async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
 
 @router.get("/api/telegram/managers")
 async def api_get_managers(request: Request):
-    """Qo'shimcha manager chat ID lar ro'yxatini qaytaradi."""
+    """Qo'shimcha admin chat ID lar ro'yxatini qaytaradi."""
     user = get_current_admin(request)
     if not user or user.get("role") != "admin":
         return JSONResponse({"error": "Forbidden"}, status_code=403)
@@ -2122,7 +2122,7 @@ async def api_get_managers(request: Request):
 
 @router.post("/api/telegram/managers")
 async def api_add_manager(request: Request, body: dict = Body(...)):
-    """Yangi manager chat ID qo'shadi. Body: {chat_id, label}"""
+    """Yangi admin chat ID qo'shadi. Body: {chat_id, label}"""
     user = get_current_admin(request)
     if not user or user.get("role") != "admin":
         return JSONResponse({"error": "Forbidden"}, status_code=403)
@@ -2141,7 +2141,7 @@ async def api_add_manager(request: Request, body: dict = Body(...)):
 
 @router.delete("/api/telegram/managers/{chat_id}")
 async def api_remove_manager(request: Request, chat_id: str):
-    """Manager chat ID ni o'chiradi."""
+    """Admin chat ID ni o'chiradi."""
     user = get_current_admin(request)
     if not user or user.get("role") != "admin":
         return JSONResponse({"error": "Forbidden"}, status_code=403)
