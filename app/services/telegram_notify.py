@@ -70,8 +70,7 @@ def broadcast_to_all(text: str, parse_mode=None) -> dict:
 
 
 def broadcast_to_main_only(text: str, parse_mode=None) -> dict:
-    """Faqat asosiy admin chatga xabar yuboradi (real-time davomat uchun).
-    Qo'shimcha adminlar faqat kunlik hisobotni oladi."""
+    """Faqat asosiy admin chatga xabar yuboradi."""
     main_result = send_telegram_message_result(text, parse_mode=parse_mode)
     return main_result
 
@@ -333,7 +332,8 @@ def process_telegram_updates_long_poll() -> None:
                 body += "Siz admin sifatida qo'shilgansiz. Kunlik hisobotni ko'rishingiz mumkin."
                 keyboard = _extra_admin_keyboard()
             else:
-                body += "Admin panel → <b>Sozlamalar</b> da shu ID ni «Chat ID ni saqlash» orqali qo'shing."
+                # Oddiy foydalanuvchi — faqat Chat ID, keyboard olib tashlash
+                keyboard = {"remove_keyboard": True}
                 
             send_telegram_to_chat(cid, greet + body, parse_mode="HTML", reply_markup=keyboard)
             bot_admin_states.pop(cid_str, None)
@@ -409,6 +409,16 @@ def process_telegram_updates_long_poll() -> None:
                     _send_photo_to_chat(cid_str, photo_bytes, caption[:1020])
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_extra_admin_keyboard())
+                continue
+
+        # O'chirilgan admin yoki oddiy user "📊" tugmasini bossa
+        if not is_main_admin and not is_extra_admin:
+            if text == "📊 Kunlik hisobot yuborish":
+                send_telegram_to_chat(
+                    cid,
+                    "⛔ Siz adminlar ro'yxatida emassiz.",
+                    reply_markup={"remove_keyboard": True}
+                )
                 continue
 
     max_id = max(u["update_id"] for u in updates) + 1
@@ -497,7 +507,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"👤 {fn} <code>{wid}</code>\n"
                 f"⏰ {t}"
             )
-            broadcast_to_main_only(text, parse_mode="HTML")
+            broadcast_to_all(text, parse_mode="HTML")
         elif event_type == "check_out":
             cin_s = record.get("check_in_time")
             cout_s = record.get("check_out_time")
@@ -523,7 +533,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 f"Kelgan: {cin_disp}\n"
                 f"📊 Ishlangan: {wt}"
             )
-            broadcast_to_main_only(text, parse_mode="HTML")
+            broadcast_to_all(text, parse_mode="HTML")
     except Exception as e:
         print(f"Telegram attendance notify: {e}")
 
