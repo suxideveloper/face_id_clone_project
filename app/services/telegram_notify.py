@@ -590,20 +590,29 @@ def build_daily_summary_chart() -> bytes:
     for i, (cat_name, val, color) in enumerate(categories):
         bx = bar_area_x0 + gap * (i + 1) + bar_w * i
         bar_h_px = int(val / max_val * bar_area_h) if max_val > 0 else 0
+        # Minimum bar height — radius (8*scale) dan katta bo'lishi shart
+        min_bar_h = 18 * scale
+        if val > 0 and bar_h_px < min_bar_h:
+            bar_h_px = min_bar_h
         by_top = bar_area_y1 - bar_h_px
+        # Xavfsizlik: y koordinatalari to'g'ri ekanligiga ishonch hosil qilish
+        by_top = min(by_top, bar_area_y1 - 1)
         cx = bx + bar_w // 2
+        # bar_w manfiy bo'lmasligi kerak
+        actual_bar_w = max(bar_w, 2 * scale)
 
         if val > 0:
             shadow_color = tuple(max(0, c - 60) for c in color)
+            r = min(8 * scale, bar_h_px // 2, actual_bar_w // 2)  # radius bar o'lchamidan oshmasin
             # Shadow
-            draw.rounded_rectangle([bx + 6*scale, by_top + 6*scale, bx + bar_w + 6*scale, bar_area_y1], radius=8*scale, fill=shadow_color)
+            draw.rounded_rectangle([bx + 6*scale, by_top + 6*scale, bx + actual_bar_w + 6*scale, bar_area_y1], radius=r, fill=shadow_color)
             # Main Bar
-            draw.rounded_rectangle([bx, by_top, bx + bar_w, bar_area_y1], radius=8*scale, fill=color)
+            draw.rounded_rectangle([bx, by_top, bx + actual_bar_w, bar_area_y1], radius=r, fill=color)
             # Value on top
             draw.text((cx, by_top - 20 * scale), str(val), font=font_label, fill=(255, 255, 255), anchor="mm")
         else:
             # Draw a tiny flat line for 0
-            draw.rounded_rectangle([bx, bar_area_y1 - 4*scale, bx + bar_w, bar_area_y1], radius=2*scale, fill=color)
+            draw.rounded_rectangle([bx, bar_area_y1 - 4*scale, bx + actual_bar_w, bar_area_y1], radius=2*scale, fill=color)
             draw.text((cx, bar_area_y1 - 20 * scale), "0", font=font_label, fill=(150, 150, 180), anchor="mm")
 
         # Category label below
