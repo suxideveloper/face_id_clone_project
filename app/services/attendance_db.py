@@ -146,7 +146,7 @@ class AttendanceDatabase:
             rows = (
                 db.query(Attendance)
                 .filter(Attendance.username == worker_id)
-                .order_by(Attendance.date.desc())
+                .order_by(Attendance.date.desc(), Attendance.check_in_time.desc())
                 .limit(limit)
                 .all()
             )
@@ -160,7 +160,7 @@ class AttendanceDatabase:
                 q = q.filter(Attendance.date >= start_date)
             if end_date:
                 q = q.filter(Attendance.date <= end_date)
-            rows = q.order_by(Attendance.date.desc()).all()
+            rows = q.order_by(Attendance.date.desc(), Attendance.check_in_time.desc()).all()
             return [self._row_to_dict(r) for r in rows]
 
     def delete_record(self, date_str: str, worker_id: str) -> bool:
