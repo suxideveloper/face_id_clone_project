@@ -9,8 +9,20 @@
     <a href="/admin" class="btn btn-secondary">Orqaga</a>
 </div>
 
+<div class="filters-bar">
+    <select id="actionFilter" onchange="filterAudit()">
+        <option value="all">Barcha harakatlar</option>
+        <option value="attendance_delete">Davomat o'chirish</option>
+        <option value="user_deleted">Xodim o'chirish</option>
+        <option value="settings_changed">Sozlamalar o'zgarishi</option>
+        <option value="user_added">Yangi xodim</option>
+        <option value="admin_login">Tizimga kirish</option>
+    </select>
+    <input type="text" id="actorFilter" placeholder="Amalga oshiruvchi (qidiruv)" onkeyup="filterAudit()">
+</div>
+
 <div class="table-container">
-    <table class="modern-table">
+    <table class="modern-table" id="auditTable">
         <thead>
             <tr>
                 <th>Vaqt</th>
@@ -21,13 +33,25 @@
         </thead>
         <tbody>
             {% for e in entries %}
-            <tr>
+            <tr class="audit-row" data-action="{{ e.action }}" data-actor="{{ e.actor | lower }}">
                 <td style="white-space: nowrap;">{{ e.ts }}</td>
                 <td>{{ e.actor }}</td>
-                <td>{{ e.action }}</td>
+                <td>
+                    {% if e.action == 'attendance_delete' %}
+                        <span class="badge badge-error" style="background:#fee2e2; color:#b91c1c;">Davomat o'chirildi</span>
+                    {% elif e.action == 'user_deleted' %}
+                        <span class="badge" style="background:#fef3c7; color:#b45309;">Xodim o'chirildi</span>
+                    {% elif e.action == 'settings_changed' %}
+                        <span class="badge badge-info" style="background:#dbeafe; color:#1d4ed8;">Sozlama o'zgardi</span>
+                    {% else %}
+                        <span class="badge">{{ e.action }}</span>
+                    {% endif %}
+                </td>
                 <td style="font-size: 0.9rem; color: var(--text-medium);">
                     {% if e.action == 'attendance_delete' and e.detail %}
                     Sana: {{ e.detail.target_date }} — {{ e.detail.worker_name }} ({{ e.detail.worker_id }})
+                    {% elif e.action == 'user_deleted' and e.detail %}
+                    Xodim ID: {{ e.detail.deleted_user }}
                     {% else %}
                     {{ e.detail }}
                     {% endif %}
@@ -41,4 +65,26 @@
         </tbody>
     </table>
 </div>
+
+<script>
+function filterAudit() {
+    const actionVal = document.getElementById('actionFilter').value;
+    const actorVal = document.getElementById('actorFilter').value.toLowerCase();
+    
+    const rows = document.querySelectorAll('.audit-row');
+    rows.forEach(row => {
+        const rowAction = row.getAttribute('data-action');
+        const rowActor = row.getAttribute('data-actor');
+        
+        const actionMatch = (actionVal === 'all' || rowAction === actionVal);
+        const actorMatch = (actorVal === '' || rowActor.includes(actorVal));
+        
+        if (actionMatch && actorMatch) {
+            row.style.display = '';
+        } else {
+            row.style.display = 'none';
+        }
+    });
+}
+</script>
 {% endblock %}

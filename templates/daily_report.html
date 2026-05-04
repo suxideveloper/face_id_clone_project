@@ -312,14 +312,22 @@
         border-bottom: 2px solid;
     }
     
+    .present-section {
+        border-left: 4px solid #10b981;
+    }
+    
+    .absent-section {
+        border-left: 4px solid #ef4444;
+    }
+
     .present-section .report-section-header {
-        background: #f0fdf4;
-        border-color: #bbf7d0;
+        background: rgba(16, 185, 129, 0.08);
+        border-bottom-color: rgba(16, 185, 129, 0.2);
     }
     
     .absent-section .report-section-header {
-        background: #fef2f2;
-        border-color: #fecaca;
+        background: rgba(239, 68, 68, 0.05);
+        border-bottom-color: rgba(239, 68, 68, 0.15);
     }
     
     .report-section-header h2 {
@@ -331,11 +339,11 @@
     }
     
     .present-section .report-section-header h2 {
-        color: #166534;
+        color: #059669;
     }
     
     .absent-section .report-section-header h2 {
-        color: #b91c1c;
+        color: #dc2626;
     }
     
     .report-section-body {
@@ -382,8 +390,8 @@
     .user-avatar {
         width: 40px;
         height: 40px;
-        background: #dbeafe;
-        color: #1e40af;
+        background: #dcfce7;
+        color: #166534;
         border-radius: 50%;
         display: flex;
         align-items: center;

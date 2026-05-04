@@ -380,6 +380,11 @@ async def telegram_daily_scheduler_loop():
                 os.makedirs(settings.DATA_DIR, exist_ok=True)
                 with open(TELEGRAM_SENT_FLAG, "w", encoding="utf-8") as f:
                     f.write(today_s)
+                
+                # Friday (4): send weekly doctorant summary
+                if now.weekday() == 4:
+                    from app.services.telegram_notify import send_weekly_doctorant_summary
+                    await asyncio.to_thread(send_weekly_doctorant_summary)
         except Exception as e:
             print(f"Telegram scheduler: {e}")
 
@@ -1477,6 +1482,8 @@ async def delete_user(request: Request, name: str):
     # Delete from user database
     user_db.delete_user(name)
     
+    audit_log.append_entry("user_deleted", user.get("username", "admin"), {"deleted_user": name})
+    
     # Delete images folder
     user_dir = os.path.join(settings.IMAGES_DIR, name)
     if os.path.exists(user_dir):
@@ -2140,6 +2147,167 @@ async def get_worker_attendance(worker_id: str, limit: int = 30):
 
 
 
+def _calculate_doctorant_stats(period: str):
+    """Calculate required and actual hours for doctorants based on period."""
+    today = datetime.now().date()
+    
+    if period == "this_week":
+        # Start of current week (Monday)
+        start_date = today - timedelta(days=today.weekday())
+        end_date = today
+    elif period == "last_week":
+        start_date = today - timedelta(days=today.weekday() + 7)
+        end_date = start_date + timedelta(days=6)
+    elif period == "last_month":
+        first_day_this_month = today.replace(day=1)
+        end_date = first_day_this_month - timedelta(days=1)
+        start_date = end_date.replace(day=1)
+    else: # "this_month"
+        start_date = today.replace(day=1)
+        end_date = today
+
+    # Standard working hours per day (e.g. 8 hours)
+    STANDARD_HOURS_PER_DAY = 8.0
+    
+    # Calculate working days in period (excluding weekends and holidays)
+    working_days = 0
+    current_date = start_date
+    while current_date <= end_date:
+        if current_date.weekday() < 5 and not holidays_db.is_holiday(current_date.isoformat()):
+            working_days += 1
+        current_date += timedelta(days=1)
+
+    doctorants = user_db.get_doctorant_users()
+    records = []
+    completed_count = 0
+    pending_count = 0
+
+    all_attendance = attendance_db.get_all_records(start_date=start_date.isoformat(), end_date=end_date.isoformat())
+    
+    for username, data in doctorants.items():
+        staff_rate = data.get("staff_rate", 1.0)
+        required_hours = working_days * STANDARD_HOURS_PER_DAY * staff_rate
+        
+        # Calculate actual hours
+        actual_seconds = 0
+        for rec in all_attendance:
+            if rec["worker_id"] == username and rec["check_in_time"] and rec["check_out_time"]:
+                try:
+                    cin = datetime.fromisoformat(rec["check_in_time"])
+                    cout = datetime.fromisoformat(rec["check_out_time"])
+                    sec = (cout - cin).total_seconds()
+                    if sec > 0:
+                        actual_seconds += sec
+                except:
+                    pass
+        
+        actual_hours = actual_seconds / 3600.0
+        
+        percentage = 0
+        if required_hours > 0:
+            percentage = (actual_hours / required_hours) * 100
+        elif actual_hours > 0:
+            percentage = 100
+            
+        is_completed = percentage >= 100
+        if is_completed:
+            completed_count += 1
+        else:
+            pending_count += 1
+
+        records.append({
+            "username": username,
+            "full_name": data.get("full_name", username),
+            "department": data.get("department", "Unassigned"),
+            "staff_rate": staff_rate,
+            "required_hours": required_hours,
+            "actual_hours": actual_hours,
+            "percentage": percentage,
+            "is_completed": is_completed
+        })
+
+    # Sort by percentage descending
+    records.sort(key=lambda x: x["percentage"], reverse=True)
+    return records, completed_count, pending_count
+
+@router.get("/admin/doctorants-report")
+async def doctorants_report_page(request: Request, period: str = "this_week"):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return RedirectResponse(url="/login?next=/admin/doctorants-report", status_code=303)
+        
+    records, completed_count, pending_count = await asyncio.to_thread(_calculate_doctorant_stats, period)
+    
+    return templates.TemplateResponse(request=request, name="doctorant_report.html", context={
+        "request": request,
+        "user": user,
+        "records": records,
+        "completed_count": completed_count,
+        "pending_count": pending_count,
+        "period": period
+    })
+
+@router.get("/api/doctorants-report/export/excel")
+async def export_doctorants_report_excel(request: Request, period: str = "this_week"):
+    user = get_current_admin(request)
+    if not user or user.get("role") != "admin":
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+        
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment
+    
+    records, _, _ = await asyncio.to_thread(_calculate_doctorant_stats, period)
+    
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Doktorantlar Hisoboti"
+    
+    ws.merge_cells("A1:G1")
+    title_cell = ws["A1"]
+    title_cell.value = f"Doktorantlar hisoboti ({period})"
+    title_cell.font = Font(bold=True, size=14)
+    title_cell.alignment = Alignment(horizontal="center")
+    
+    row = 3
+    headers = ["#", "F.I.O", "Bo'lim", "Stavka", "Talab (soat)", "Haqiqiy (soat)", "Bajarilish %"]
+    header_fill = PatternFill(start_color="EDE9FE", end_color="EDE9FE", fill_type="solid")
+    
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=row, column=col, value=h)
+        cell.font = Font(bold=True, size=10)
+        cell.fill = header_fill
+    
+    row += 1
+    for i, r in enumerate(records, 1):
+        ws.cell(row=row, column=1, value=i)
+        ws.cell(row=row, column=2, value=r["full_name"])
+        ws.cell(row=row, column=3, value=r["department"])
+        ws.cell(row=row, column=4, value=r["staff_rate"])
+        ws.cell(row=row, column=5, value=round(r["required_hours"], 1))
+        ws.cell(row=row, column=6, value=round(r["actual_hours"], 1))
+        ws.cell(row=row, column=7, value=round(r["percentage"], 1))
+        row += 1
+        
+    for col in ws.columns:
+        max_length = 0
+        column_letter = None
+        for cell in col:
+            if hasattr(cell, 'column_letter'):
+                column_letter = cell.column_letter
+            if cell.value:
+                max_length = max(max_length, len(str(cell.value)))
+        if column_letter:
+            ws.column_dimensions[column_letter].width = min(max_length + 4, 40)
+            
+    buf = BytesIO()
+    wb.save(buf)
+    
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="doctorant_report_{period}.xlsx"'},
+    )
+
 @router.get("/admin/audit")
 async def admin_audit_page(request: Request):
     user = get_current_admin(request)
@@ -2345,10 +2513,22 @@ async def admin_departments_page(request: Request):
     if not user or user.get("role") != "admin":
         return RedirectResponse(url="/login?next=/admin/departments", status_code=303)
     
+    departments = departments_db.get_all()
+    all_users = user_db.get_all_users()
+    
+    dept_counts = {}
+    for uid, udata in all_users.items():
+        dept_name = udata.get("department", "")
+        if dept_name:
+            dept_counts[dept_name] = dept_counts.get(dept_name, 0) + 1
+            
+    for dept in departments:
+        dept['employee_count'] = dept_counts.get(dept['name'], 0)
+    
     return templates.TemplateResponse(request=request, name="admin_departments.html", context={
         "request": request,
         "user": user,
-        "departments": departments_db.get_all()
+        "departments": departments
     })
 
 @router.post("/api/departments")

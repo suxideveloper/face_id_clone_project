@@ -4,6 +4,7 @@ from typing import Any, Optional
 
 from app.core.database import SessionLocal
 from app.core.models import AuditLogEntry
+from app.services.telegram_notify import notify_audit_alert
 
 MAX_ENTRIES = 800
 
@@ -35,6 +36,14 @@ def append_entry(
             )
             db.query(AuditLogEntry).filter(AuditLogEntry.id.in_(oldest_ids)).delete(synchronize_session=False)
             db.commit()
+
+        # Notify via Telegram for critical actions
+        critical_actions = ["attendance_delete", "user_deleted", "settings_changed", "manual_attendance"]
+        if action in critical_actions:
+            try:
+                notify_audit_alert(action, actor or "noma'lum", json.dumps(detail or {}, ensure_ascii=False))
+            except Exception as e:
+                print(f"Failed to send audit alert: {e}")
 
 
 def log_attendance_delete(

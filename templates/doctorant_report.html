@@ -1,0 +1,419 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1>Doktorantlar hisoboti</h1>
+        <p style="color: var(--text-light); margin-top: 4px;">
+            Haftalik va oylik ishlangan soatlar va stavkalar monitoringi.
+        </p>
+    </div>
+    <div class="header-actions">
+        <form id="filterForm" method="get" style="display: flex; gap: 12px; align-items: center;">
+            <select name="period" class="form-control" onchange="document.getElementById('filterForm').submit()" style="width: 150px; padding: 8px;">
+                <option value="this_week" {% if period == 'this_week' %}selected{% endif %}>Shu hafta</option>
+                <option value="last_week" {% if period == 'last_week' %}selected{% endif %}>O'tgan hafta</option>
+                <option value="this_month" {% if period == 'this_month' %}selected{% endif %}>Shu oy</option>
+                <option value="last_month" {% if period == 'last_month' %}selected{% endif %}>O'tgan oy</option>
+            </select>
+            <a href="/api/doctorants-report/export/excel?period={{ period }}" class="btn btn-primary" style="background: linear-gradient(135deg, var(--accent-green), #059669); color: white;">
+                📥 Excel yuklash
+            </a>
+        </form>
+    </div>
+</div>
+
+<div class="report-summary">
+    <div class="summary-card">
+        <div class="summary-icon" style="background: #f3e8ff; color: #7c3aed;">🎓</div>
+        <div class="summary-info">
+            <div class="summary-value">{{ records|length }}</div>
+            <div class="summary-label">Jami Doktorantlar</div>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon" style="background: #dcfce7; color: #16a34a;">✅</div>
+        <div class="summary-info">
+            <div class="summary-value" style="color: #16a34a;">{{ completed_count }}</div>
+            <div class="summary-label">Yuklamani bajarganlar</div>
+        </div>
+    </div>
+    <div class="summary-card">
+        <div class="summary-icon" style="background: #fef2f2; color: #dc2626;">⚠️</div>
+        <div class="summary-info">
+            <div class="summary-value" style="color: #dc2626;">{{ pending_count }}</div>
+            <div class="summary-label">Qarzdorlar</div>
+        </div>
+    </div>
+</div>
+
+<div class="report-section" style="border-top: 4px solid #8b5cf6;">
+    <div class="report-section-body">
+        {% if records %}
+        <table class="report-table">
+            <thead>
+                <tr>
+                    <th>Doktorant</th>
+                    <th>Bo'lim</th>
+                    <th>Stavka</th>
+                    <th>Talab qilingan soat</th>
+                    <th>Ishlagan soati</th>
+                    <th>Bajarilish %</th>
+                    <th>Holati</th>
+                </tr>
+            </thead>
+            <tbody id="reportTableBody">
+                {% for r in records %}
+                <tr data-user-id="{{ r.username }}">
+                    <td class="name-col">
+                        <div class="user-avatar" style="background: rgba(139,92,246,0.15); color: #7c3aed;">{{ r.full_name[0]|upper }}</div>
+                        <div class="user-info">
+                            <strong>{{ r.full_name }}</strong>
+                            <small>ID: {{ r.username }}</small>
+                        </div>
+                    </td>
+                    <td>{{ r.department }}</td>
+                    <td><span class="badge-rate">{{ r.staff_rate }}</span></td>
+                    <td><strong>{{ "%.1f"|format(r.required_hours) }} s</strong></td>
+                    <td><strong>{{ "%.1f"|format(r.actual_hours) }} s</strong></td>
+                    <td>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="flex-grow: 1; background: #e2e8f0; height: 8px; border-radius: 4px; overflow: hidden;">
+                                <div style="width: {{ 100 if r.percentage|default(0)|float > 100 else r.percentage|default(0)|float }}%; height: 100%; background: {% if r.percentage >= 100 %}#16a34a{% elif r.percentage >= 50 %}#f59e0b{% else %}#ef4444{% endif %};"></div>
+                            </div>
+                            <span style="font-size: 0.85rem; font-weight: 600;">{{ "%.0f"|format(r.percentage) }}%</span>
+                        </div>
+                    </td>
+                    <td>
+                        {% if r.percentage >= 100 %}
+                        <span class="status-badge complete">Bajarildi</span>
+                        {% else %}
+                        <span class="status-badge absent">Qarzdor</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="paginationContainer" style="display:flex; justify-content:center; align-items:center; gap:8px; margin-top:18px; margin-bottom:24px; flex-wrap:wrap;"></div>
+        {% else %}
+        <div class="empty-state">Bu davr uchun ma'lumot yo'q.</div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    .badge-rate {
+        display: inline-block;
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        background: rgba(139,92,246,0.15); 
+        color: #7c3aed;
+    }
+    
+    .report-summary {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 24px;
+        margin-bottom: 32px;
+    }
+    
+    .summary-card {
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-md);
+        padding: 24px;
+        display: flex;
+        align-items: center;
+        gap: 20px;
+        box-shadow: var(--shadow-sm);
+    }
+    
+    .summary-icon {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    
+    .summary-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .summary-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text-dark);
+        line-height: 1.2;
+    }
+    
+    .summary-label {
+        font-size: 0.95rem;
+        color: var(--text-light);
+        font-weight: 500;
+    }
+    
+    .report-section {
+        background: var(--bg-white);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        overflow: hidden;
+        box-shadow: var(--shadow-sm);
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .report-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+    
+    .report-table th, .report-table td {
+        padding: 16px 24px;
+        border-bottom: 1px solid #f1f5f9;
+        text-align: left;
+    }
+    
+    .report-table th {
+        background: #f8fafc;
+        color: #64748b;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        letter-spacing: 0.5px;
+    }
+    
+    .name-col {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+    
+    .user-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+    }
+    
+    .user-info {
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .user-info strong {
+        color: var(--text-dark);
+        font-weight: 600;
+    }
+    
+    .user-info small {
+        color: var(--text-light);
+        font-size: 0.8rem;
+    }
+
+    .status-badge {
+        font-weight: 600;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        display: inline-block;
+    }
+    
+    .status-badge.absent {
+        background: #fef2f2;
+        color: #dc2626;
+    }
+
+    .status-badge.complete {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    /* Dark mode tweaks */
+    html[data-theme="dark"] .report-table th {
+        background: rgba(148, 163, 184, 0.10);
+        color: var(--text-medium);
+    }
+    html[data-theme="dark"] .report-table th,
+    html[data-theme="dark"] .report-table td {
+        border-bottom-color: rgba(148, 163, 184, 0.12);
+    }
+    html[data-theme="dark"] .status-badge.absent {
+        background: rgba(239, 68, 68, 0.14);
+        color: #f87171;
+    }
+    html[data-theme="dark"] .status-badge.complete {
+        background: rgba(34, 197, 94, 0.16);
+        color: #86efac;
+    }
+
+    /* Pagination CSS */
+    .pagination-btn {
+        min-width: 38px;
+        height: 38px;
+        border: 1px solid var(--border-color);
+        background: var(--bg-primary);
+        color: var(--text-dark);
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 600;
+        font-size: 0.9rem;
+        transition: all 0.2s;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0 10px;
+    }
+    .pagination-btn:hover {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+    }
+    .pagination-btn.active {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        box-shadow: 0 2px 8px rgba(99,102,241,0.3);
+    }
+    .pagination-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+    }
+    .pagination-info {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        margin: 0 8px;
+    }
+</style>
+
+<script>
+    let allRows = [];
+    let currentPage = 1;
+    const RECORDS_PER_PAGE = 20;
+
+    function renderPagination(totalItems) {
+        const container = document.getElementById('paginationContainer');
+        if (!container) return;
+        const totalPages = Math.ceil(totalItems / RECORDS_PER_PAGE);
+        container.innerHTML = '';
+
+        if (totalPages <= 1) return;
+
+        // Prev button
+        const prevBtn = document.createElement('button');
+        prevBtn.className = 'pagination-btn';
+        prevBtn.innerHTML = '‹';
+        prevBtn.disabled = currentPage === 1;
+        prevBtn.onclick = () => goToPage(currentPage - 1);
+        container.appendChild(prevBtn);
+
+        // Page buttons
+        const maxVisible = 5;
+        let startP = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+        let endP = Math.min(totalPages, startP + maxVisible - 1);
+        if (endP - startP < maxVisible - 1) startP = Math.max(1, endP - maxVisible + 1);
+
+        if (startP > 1) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = '1';
+            b.onclick = () => goToPage(1);
+            container.appendChild(b);
+            if (startP > 2) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+        }
+
+        for (let i = startP; i <= endP; i++) {
+            const b = document.createElement('button');
+            b.className = 'pagination-btn' + (i === currentPage ? ' active' : '');
+            b.textContent = i;
+            b.onclick = () => goToPage(i);
+            container.appendChild(b);
+        }
+
+        if (endP < totalPages) {
+            if (endP < totalPages - 1) {
+                const dots = document.createElement('span');
+                dots.className = 'pagination-info';
+                dots.textContent = '...';
+                container.appendChild(dots);
+            }
+            const b = document.createElement('button');
+            b.className = 'pagination-btn';
+            b.textContent = totalPages;
+            b.onclick = () => goToPage(totalPages);
+            container.appendChild(b);
+        }
+
+        // Next button
+        const nextBtn = document.createElement('button');
+        nextBtn.className = 'pagination-btn';
+        nextBtn.innerHTML = '›';
+        nextBtn.disabled = currentPage === totalPages;
+        nextBtn.onclick = () => goToPage(currentPage + 1);
+        container.appendChild(nextBtn);
+
+        // Info text
+        const info = document.createElement('span');
+        info.className = 'pagination-info';
+        const from = (currentPage - 1) * RECORDS_PER_PAGE + 1;
+        const to = Math.min(currentPage * RECORDS_PER_PAGE, totalItems);
+        info.textContent = `${from}-${to} / ${totalItems}`;
+        container.appendChild(info);
+    }
+
+    function showPage(page) {
+        if (allRows.length === 0) return;
+        
+        const totalItems = allRows.length;
+        const totalPages = Math.ceil(totalItems / RECORDS_PER_PAGE);
+        if (page > totalPages && totalPages > 0) page = totalPages;
+        if (page < 1) page = 1;
+        
+        currentPage = page;
+
+        const startIdx = (currentPage - 1) * RECORDS_PER_PAGE;
+        const endIdx = startIdx + RECORDS_PER_PAGE;
+
+        allRows.forEach((row, index) => {
+            if (index >= startIdx && index < endIdx) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+
+        renderPagination(totalItems);
+    }
+
+    function goToPage(page) {
+        showPage(page);
+        document.querySelector('.report-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const tbody = document.getElementById('reportTableBody');
+        if (tbody) {
+            allRows = Array.from(tbody.querySelectorAll('tr[data-user-id]'));
+            if (allRows.length > 0) {
+                showPage(1);
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -555,6 +555,19 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
         print(f"Telegram attendance notify: {e}")
 
 
+def notify_audit_alert(action: str, actor: str, details: str) -> None:
+    """Telegram orqali muhim audit voqeasi haqida xabar (faqat asosiy adminga)."""
+    if not is_telegram_ready():
+        return
+    text = (
+        f"⚠️ <b>DIQQAT: Tizimda o'zgarish</b>\n"
+        f"👤 <b>Amalga oshirdi:</b> {html.escape(actor)}\n"
+        f"🛠 <b>Harakat:</b> {html.escape(action)}\n"
+        f"📝 <b>Tafsilot:</b> {html.escape(details)}"
+    )
+    broadcast_to_main_only(text, parse_mode="HTML")
+
+
 def send_telegram_message(text: str, parse_mode=None) -> bool:
     r = send_telegram_message_result(text, parse_mode=parse_mode)
     return r.get("ok", False)
@@ -934,3 +947,82 @@ def send_daily_summary_with_chart() -> dict:
         broadcast_to_main_only(doc_text)
 
     return {"ok": sent > 0, "sent": sent, "errors": errors}
+
+def send_weekly_doctorant_summary() -> dict:
+    """Haftalik doctorantlar yuklamasini hisoblab, Telegram orqali yuboradi."""
+    if not is_telegram_ready():
+        return {"ok": False, "sent": 0, "errors": ["Telegram sozlanmagan"]}
+
+    from app.services.attendance_db import attendance_db
+    from app.services.user_db import user_db
+    from app.services.holidays_db import holidays_db
+    from datetime import timedelta
+
+    today = date.today()
+    # Haftaning boshi (Dushanba)
+    start_date = today - timedelta(days=today.weekday())
+    end_date = today
+
+    STANDARD_HOURS_PER_DAY = 8.0
+    working_days = 0
+    current_date = start_date
+    while current_date <= end_date:
+        if current_date.weekday() < 5 and not holidays_db.is_holiday(current_date.isoformat()):
+            working_days += 1
+        current_date += timedelta(days=1)
+
+    doctorants = user_db.get_doctorant_users()
+    all_attendance = attendance_db.get_all_records(start_date=start_date.isoformat(), end_date=end_date.isoformat())
+
+    records = []
+    completed_count = 0
+    pending_count = 0
+
+    for username, data in doctorants.items():
+        staff_rate = data.get("staff_rate", 1.0)
+        required_hours = working_days * STANDARD_HOURS_PER_DAY * staff_rate
+
+        actual_seconds = 0
+        for rec in all_attendance:
+            if rec["worker_id"] == username and rec["check_in_time"] and rec["check_out_time"]:
+                try:
+                    cin = datetime.fromisoformat(rec["check_in_time"])
+                    cout = datetime.fromisoformat(rec["check_out_time"])
+                    sec = (cout - cin).total_seconds()
+                    if sec > 0:
+                        actual_seconds += sec
+                except:
+                    pass
+
+        actual_hours = actual_seconds / 3600.0
+        percentage = (actual_hours / required_hours) * 100 if required_hours > 0 else (100 if actual_hours > 0 else 0)
+
+        is_completed = percentage >= 100
+        if is_completed:
+            completed_count += 1
+        else:
+            pending_count += 1
+
+        records.append({
+            "full_name": data.get("full_name", username),
+            "required": required_hours,
+            "actual": actual_hours,
+            "percentage": percentage,
+            "is_completed": is_completed
+        })
+
+    records.sort(key=lambda x: x["percentage"], reverse=True)
+
+    lines = [f"📊 <b>Doktorantlar Haftalik Xulosasi</b>",
+             f"Hafta: {start_date.isoformat()} dan {end_date.isoformat()} gacha\n",
+             f"✅ Bajarganlar: {completed_count}",
+             f"⚠️ Qarzdorlar: {pending_count}\n"]
+
+    for r in records:
+        status_icon = "🟢" if r["is_completed"] else "🔴"
+        lines.append(f"{status_icon} <b>{r['full_name']}</b>")
+        lines.append(f"Talab: {r['required']:.1f} soat | Haqiqiy: {r['actual']:.1f} soat ({r['percentage']:.0f}%)\n")
+
+    text = "\n".join(lines)
+    result = broadcast_to_main_only(text, parse_mode="HTML")
+    return result

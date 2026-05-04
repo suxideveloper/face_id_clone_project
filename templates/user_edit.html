@@ -48,6 +48,7 @@
                     <label for="staff_rate">Shtat birligi</label>
                     <select id="staff_rate" name="staff_rate">
                         {% set current_rate = user_info.staff_rate|default(1.0)|float %}
+                        <option value="0" {% if current_rate == 0 %}selected{% endif %}>0 (Faqat o'qiydi)</option>
                         <option value="0.25" {% if current_rate == 0.25 %}selected{% endif %}>0.25</option>
                         <option value="0.5" {% if current_rate == 0.5 %}selected{% endif %}>0.5</option>
                         <option value="0.75" {% if current_rate == 0.75 %}selected{% endif %}>0.75</option>
