@@ -1,0 +1,127 @@
+[
+  {
+    "id": "39fa8d68-1eda-4f11-a5a2-d526516d0af8",
+    "name": "Rahbariyat",
+    "description": ""
+  },
+  {
+    "id": "a51249ce-695e-411b-9fec-5bb8cb3902c6",
+    "name": "Buxgalteriya",
+    "description": ""
+  },
+  {
+    "id": "64f6d030-fbdd-4b49-a2a8-a7637a5d1f93",
+    "name": "HR (Xodimlar bilan ishlash bo'limi)",
+    "description": ""
+  },
+  {
+    "id": "ee68c0d3-c195-4deb-9ce7-78c726f4eee9",
+    "name": "Mutaxassislar",
+    "description": ""
+  },
+  {
+    "id": "6fac507c-104d-4f24-bb97-947815902e1f",
+    "name": "Biometrik tizimlar labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "9df08cba-e03a-4540-b144-e04251d5afc6",
+    "name": "Intelektual dastury tizimlar qo'shma labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "64134cda-8886-491f-be08-36492443445f",
+    "name": "Timsollarni tanib olish labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "11740ea4-d5ab-42dc-b1ee-505fa69a8634",
+    "name": "Tabiiy tilni qayta ishlash labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "3cda5fb7-9415-4f54-96eb-b0f27e12824c",
+    "name": "Murakkab tizimlarni modellashtirish labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "43706c3c-7f68-4775-b0bb-2063defa4280",
+    "name": "Sun'iy intelekt va mashinaviy o'qitish labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "7cb0437c-a990-40f4-b7ee-b2f319d814de",
+    "name": "Aqilli tizimlar va buyumlar interneti labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "62b04785-0300-468d-b3a4-1549bf63a333",
+    "name": "Texnik tizimlarni boshqarish va raqamli loyhalash labaratoriyasi",
+    "description": ""
+  },
+  {
+    "id": "fef23112-1b9f-4cc6-8fc0-b22a9e2d9c0d",
+    "name": "Dasturiy mahsulotlarni ishlab chiqsh bo'limi",
+    "description": ""
+  },
+  {
+    "id": "ba67f7e0-5b53-40ae-9af8-6a6b67055ca0",
+    "name": "Dasturiy mahsulotlarni joriy etish bo'limi",
+    "description": ""
+  },
+  {
+    "id": "74e1e181-5375-4aef-9301-5d705b78e406",
+    "name": "AKT startuplarni qo'llab quvvatlash bo'limi",
+    "description": ""
+  },
+  {
+    "id": "b0cd4327-bcbc-4a67-880e-feb3f3ef7267",
+    "name": "Patentlash va tijoratlashtirish bo'limi",
+    "description": ""
+  },
+  {
+    "id": "1a38bd60-08a7-4781-af16-5a131fdad53e",
+    "name": "Umumiy bo'lim",
+    "description": ""
+  },
+  {
+    "id": "6622390e-aa6c-4508-9ac4-597d7aef93d9",
+    "name": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
+    "description": ""
+  },
+  {
+    "id": "it",
+    "name": "IT",
+    "description": "IT bo'limi"
+  },
+  {
+    "id": "hr",
+    "name": "HR",
+    "description": "HR bo'limi"
+  },
+  {
+    "id": "sales",
+    "name": "Sales",
+    "description": "Sales bo'limi"
+  },
+  {
+    "id": "marketing",
+    "name": "Marketing",
+    "description": "Marketing bo'limi"
+  },
+  {
+    "id": "finance",
+    "name": "Finance",
+    "description": "Finance bo'limi"
+  },
+  {
+    "id": "management",
+    "name": "Management",
+    "description": "Management bo'limi"
+  },
+  {
+    "id": "security",
+    "name": "Security",
+    "description": "Security bo'limi"
+  }
+]

@@ -1,0 +1,920 @@
+{
+  "user_99790_1": {
+    "full_name": "Karimov Madina",
+    "phone": "+998972147148",
+    "department": "Finance",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_39162_2": {
+    "full_name": "Olimov Rustam",
+    "phone": "+998943995898",
+    "department": "Security",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.5
+  },
+  "Suxrob": {
+    "full_name": "Suxrob Toshpulatov",
+    "phone": "+998 99 307-75-16",
+    "department": "Dasturiy mahsulotlarni sinovdan o'tkazish bo'limi",
+    "position": "Yetakchi mutaxassis",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_44873_3": {
+    "full_name": "Ahmedov Sardor",
+    "phone": "+998992788065",
+    "department": "Marketing",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_67819_4": {
+    "full_name": "Ahmedov Rustam",
+    "phone": "+998911909759",
+    "department": "IT",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_80943_5": {
+    "full_name": "Abdullayev Sevara",
+    "phone": "+998933015747",
+    "department": "HR",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_36680_6": {
+    "full_name": "Ahmedov Shohruh",
+    "phone": "+998911808506",
+    "department": "Finance",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_33266_7": {
+    "full_name": "Zokirov Sevara",
+    "phone": "+998917633822",
+    "department": "IT",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_27907_8": {
+    "full_name": "Karimov Madina",
+    "phone": "+998913524836",
+    "department": "Sales",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_48023_9": {
+    "full_name": "Tursunov Guli",
+    "phone": "+998946377159",
+    "department": "Sales",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_70724_10": {
+    "full_name": "Tursunov Dilshod",
+    "phone": "+998943869103",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_68020_11": {
+    "full_name": "Nazarov Madina",
+    "phone": "+998907605284",
+    "department": "Security",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_14376_12": {
+    "full_name": "Qodirov Jasur",
+    "phone": "+998912174567",
+    "department": "HR",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_22746_13": {
+    "full_name": "Ahmedov Umid",
+    "phone": "+998912966358",
+    "department": "Security",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_13138_14": {
+    "full_name": "Abdullayev Dildora",
+    "phone": "+998937025626",
+    "department": "Sales",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_82933_15": {
+    "full_name": "Olimov Azamat",
+    "phone": "+998909716679",
+    "department": "Sales",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_67799_16": {
+    "full_name": "Ergashev Rustam",
+    "phone": "+998997571526",
+    "department": "Sales",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_71506_17": {
+    "full_name": "Zokirov Jasur",
+    "phone": "+998908942225",
+    "department": "IT",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_44972_18": {
+    "full_name": "Ergashev Umid",
+    "phone": "+998911192711",
+    "department": "Sales",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_20611_19": {
+    "full_name": "Umarov Dilshod",
+    "phone": "+998999135520",
+    "department": "IT",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_74255_20": {
+    "full_name": "Karimov Jasur",
+    "phone": "+998947727058",
+    "department": "Finance",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_76834_21": {
+    "full_name": "Rahimov Javohir",
+    "phone": "+998906041819",
+    "department": "Sales",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_79861_22": {
+    "full_name": "Zokirov Sevara",
+    "phone": "+998933228063",
+    "department": "Marketing",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_87170_23": {
+    "full_name": "Yusupov Shahzoda",
+    "phone": "+998905550035",
+    "department": "Management",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_98008_24": {
+    "full_name": "Sattorov Madina",
+    "phone": "+998997705129",
+    "department": "HR",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_60791_25": {
+    "full_name": "Tursunov Malika",
+    "phone": "+998936720321",
+    "department": "Security",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_53879_26": {
+    "full_name": "Ergashev Sevara",
+    "phone": "+998918218251",
+    "department": "Management",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_99213_27": {
+    "full_name": "Nazarov Madina",
+    "phone": "+998905242938",
+    "department": "Finance",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_41228_28": {
+    "full_name": "Nazarov Sevara",
+    "phone": "+998946968193",
+    "department": "Sales",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.5
+  },
+  "user_53861_29": {
+    "full_name": "Zokirov Sardor",
+    "phone": "+998997683644",
+    "department": "HR",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_67858_30": {
+    "full_name": "Ahmedov Sardor",
+    "phone": "+998992632131",
+    "department": "Sales",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_27075_31": {
+    "full_name": "Rahimov Malika",
+    "phone": "+998933514773",
+    "department": "Marketing",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_37641_32": {
+    "full_name": "Usmonov Jasur",
+    "phone": "+998908713872",
+    "department": "Security",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_42517_33": {
+    "full_name": "Tursunov Malika",
+    "phone": "+998912285961",
+    "department": "Finance",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.5
+  },
+  "user_99834_34": {
+    "full_name": "Qodirov Dilshod",
+    "phone": "+998979958571",
+    "department": "Sales",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_82162_35": {
+    "full_name": "Rahimov Madina",
+    "phone": "+998905772872",
+    "department": "HR",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_37993_36": {
+    "full_name": "Umarov Rustam",
+    "phone": "+998913028027",
+    "department": "HR",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_23132_37": {
+    "full_name": "Abdullayev Guli",
+    "phone": "+998972736198",
+    "department": "Security",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_34420_38": {
+    "full_name": "Olimov Javohir",
+    "phone": "+998905852897",
+    "department": "Finance",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.5
+  },
+  "user_19077_39": {
+    "full_name": "Umarov Guli",
+    "phone": "+998913987355",
+    "department": "Management",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_52265_41": {
+    "full_name": "Olimov Rustam",
+    "phone": "+998933344436",
+    "department": "Security",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_87615_42": {
+    "full_name": "Karimov Dilshod",
+    "phone": "+998942978372",
+    "department": "Finance",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_14185_43": {
+    "full_name": "Nazarov Asal",
+    "phone": "+998913204192",
+    "department": "Marketing",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_42428_44": {
+    "full_name": "Yusupov Dilshod",
+    "phone": "+998904942509",
+    "department": "Marketing",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_87721_45": {
+    "full_name": "Ahmedov Alisher",
+    "phone": "+998947741325",
+    "department": "Security",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_97671_46": {
+    "full_name": "Jalilov Dildora",
+    "phone": "+998932729108",
+    "department": "Sales",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_34807_47": {
+    "full_name": "Olimov Rustam",
+    "phone": "+998909495066",
+    "department": "IT",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_82402_48": {
+    "full_name": "Umarov Nigina",
+    "phone": "+998948900520",
+    "department": "Management",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_88828_49": {
+    "full_name": "Qodirov Jasur",
+    "phone": "+998949382169",
+    "department": "Management",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_15105_50": {
+    "full_name": "Yusupov Malika",
+    "phone": "+998916955185",
+    "department": "Management",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_32280_51": {
+    "full_name": "Qodirov Rustam",
+    "phone": "+998934212019",
+    "department": "Management",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_93602_52": {
+    "full_name": "Jalilov Sevara",
+    "phone": "+998971507907",
+    "department": "Sales",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_75401_53": {
+    "full_name": "Olimov Madina",
+    "phone": "+998908961559",
+    "department": "Management",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_59967_54": {
+    "full_name": "Sattorov Nilufar",
+    "phone": "+998947965756",
+    "department": "Finance",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_40211_55": {
+    "full_name": "Jalilov Malika",
+    "phone": "+998906842952",
+    "department": "Marketing",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_84287_56": {
+    "full_name": "Usmonov Nilufar",
+    "phone": "+998911591243",
+    "department": "Management",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_33618_57": {
+    "full_name": "Ahmedov Azamat",
+    "phone": "+998993122778",
+    "department": "Security",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_85421_58": {
+    "full_name": "Tursunov Shohruh",
+    "phone": "+998931709215",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_26086_59": {
+    "full_name": "Nazarov Azamat",
+    "phone": "+998935976457",
+    "department": "Marketing",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_36079_60": {
+    "full_name": "Tursunov Nigina",
+    "phone": "+998945253562",
+    "department": "Finance",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_76345_61": {
+    "full_name": "Olimov Nigina",
+    "phone": "+998949215376",
+    "department": "Sales",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_77666_62": {
+    "full_name": "Olimov Rustam",
+    "phone": "+998977221390",
+    "department": "IT",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_98388_63": {
+    "full_name": "Ahmedov Umid",
+    "phone": "+998973570998",
+    "department": "HR",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_31210_64": {
+    "full_name": "Umarov Madina",
+    "phone": "+998908848109",
+    "department": "HR",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_98927_65": {
+    "full_name": "Tursunov Alisher",
+    "phone": "+998915092223",
+    "department": "HR",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_18039_66": {
+    "full_name": "Ahmedov Sevara",
+    "phone": "+998977878138",
+    "department": "Marketing",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_36238_67": {
+    "full_name": "Yusupov Shahzoda",
+    "phone": "+998913007111",
+    "department": "Marketing",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_18235_68": {
+    "full_name": "Tursunov Dildora",
+    "phone": "+998937354361",
+    "department": "Finance",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_20037_69": {
+    "full_name": "Ergashev Zilola",
+    "phone": "+998995591846",
+    "department": "Security",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_63985_70": {
+    "full_name": "Olimov Jasur",
+    "phone": "+998944877951",
+    "department": "Management",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_86901_71": {
+    "full_name": "Umarov Shohruh",
+    "phone": "+998916870735",
+    "department": "Security",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_55470_72": {
+    "full_name": "Zokirov Bekzod",
+    "phone": "+998973905940",
+    "department": "IT",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_86826_73": {
+    "full_name": "Ahmedov Rustam",
+    "phone": "+998948817459",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_53161_74": {
+    "full_name": "Nazarov Dildora",
+    "phone": "+998945310378",
+    "department": "Security",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_58403_75": {
+    "full_name": "Qodirov Nigina",
+    "phone": "+998918097939",
+    "department": "Finance",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_95286_76": {
+    "full_name": "Nazarov Shahzoda",
+    "phone": "+998933312819",
+    "department": "IT",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_11795_77": {
+    "full_name": "Jalilov Javohir",
+    "phone": "+998994756196",
+    "department": "Security",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.5
+  },
+  "suxi": {
+    "full_name": "suxrob tosh",
+    "phone": "+998 99 999-99-99",
+    "department": "Aqilli tizimlar va buyumlar interneti labaratoriyasi",
+    "position": "Doctarant",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.0
+  },
+  "user_55085_40": {
+    "full_name": "Yusupov Guli",
+    "phone": "+998993251596",
+    "department": "Finance",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.0
+  },
+  "user_92803_78": {
+    "full_name": "Nazarov Umid",
+    "phone": "+998942739573",
+    "department": "Finance",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_59292_79": {
+    "full_name": "Umarov Umid",
+    "phone": "+998914482112",
+    "department": "Finance",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_82811_80": {
+    "full_name": "Karimov Madina",
+    "phone": "+998931447393",
+    "department": "Marketing",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_42365_81": {
+    "full_name": "Nazarov Malika",
+    "phone": "+998942669558",
+    "department": "IT",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_59772_82": {
+    "full_name": "Nazarov Sardor",
+    "phone": "+998919641821",
+    "department": "IT",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_59623_83": {
+    "full_name": "Ahmedov Nigina",
+    "phone": "+998935984467",
+    "department": "HR",
+    "position": "Developer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.5
+  },
+  "user_30583_84": {
+    "full_name": "Ahmedov Azamat",
+    "phone": "+998901551510",
+    "department": "Security",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_29908_85": {
+    "full_name": "Ahmedov Shohruh",
+    "phone": "+998971609988",
+    "department": "Management",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_52377_86": {
+    "full_name": "Usmonov Nigina",
+    "phone": "+998904681390",
+    "department": "Finance",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_33177_87": {
+    "full_name": "Ahmedov Nilufar",
+    "phone": "+998931206273",
+    "department": "HR",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.75
+  },
+  "user_13802_88": {
+    "full_name": "Sattorov Javohir",
+    "phone": "+998975988511",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.25
+  },
+  "user_93305_89": {
+    "full_name": "Ahmedov Alisher",
+    "phone": "+998913208773",
+    "department": "IT",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.75
+  },
+  "user_16381_90": {
+    "full_name": "Usmonov Guli",
+    "phone": "+998901709641",
+    "department": "Marketing",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_52360_91": {
+    "full_name": "Olimov Shohruh",
+    "phone": "+998948911564",
+    "department": "HR",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_52643_92": {
+    "full_name": "Qodirov Shahzoda",
+    "phone": "+998975068627",
+    "department": "Management",
+    "position": "Designer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_36395_93": {
+    "full_name": "Umarov Nilufar",
+    "phone": "+998935128029",
+    "department": "IT",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_52555_94": {
+    "full_name": "Umarov Nigina",
+    "phone": "+998995656223",
+    "department": "Security",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 0.25
+  },
+  "user_68510_95": {
+    "full_name": "Ahmedov Alisher",
+    "phone": "+998973010357",
+    "department": "IT",
+    "position": "Engineer",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_41060_96": {
+    "full_name": "Rahimov Nilufar",
+    "phone": "+998949771589",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  },
+  "user_15740_97": {
+    "full_name": "Jalilov Rustam",
+    "phone": "+998902499196",
+    "department": "Security",
+    "position": "Manager",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.5
+  },
+  "user_90755_98": {
+    "full_name": "Abdullayev Malika",
+    "phone": "+998937664953",
+    "department": "IT",
+    "position": "Specialist",
+    "registered": true,
+    "is_doctorant": true,
+    "staff_rate": 1.0
+  },
+  "user_15136_99": {
+    "full_name": "Abdullayev Zilola",
+    "phone": "+998996926688",
+    "department": "Finance",
+    "position": "Analyst",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 0.5
+  },
+  "user_78955_100": {
+    "full_name": "Sattorov Bekzod",
+    "phone": "+998971500955",
+    "department": "Management",
+    "position": "Director",
+    "registered": true,
+    "is_doctorant": false,
+    "staff_rate": 1.0
+  }
+}

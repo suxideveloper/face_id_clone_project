@@ -1,0 +1,12 @@
+{
+  "admin": {
+    "salt": "fc50a3e420c4d4432806155dde7ffc47",
+    "hashed_password": "d01e66238cded88075fac874879638c4c7a74d90823ca088b7896afa1fca8b17",
+    "role": "admin"
+  },
+  "kiosk": {
+    "salt": "21baf02e8cb3faa4d19cf536e36ce7bf",
+    "hashed_password": "6e2b531713aeafe1ffc191695489a1274971793e685d855e660077e87c4ab3bf",
+    "role": "kiosk"
+  }
+}

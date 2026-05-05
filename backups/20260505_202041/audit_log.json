@@ -1,0 +1,26 @@
+[
+  {
+    "ts": null,
+    "actor": "",
+    "action": "attendance_delete",
+    "detail": ""
+  },
+  {
+    "ts": null,
+    "actor": "",
+    "action": "attendance_delete",
+    "detail": ""
+  },
+  {
+    "ts": "2026-05-03T23:30:22",
+    "actor": "admin",
+    "action": "attendance_delete",
+    "detail": "{\"target_date\": \"2026-05-03\", \"worker_id\": \"Suxrob\", \"worker_name\": \"Suxrob Toshpulatov\"}"
+  },
+  {
+    "ts": "2026-05-03T23:30:27",
+    "actor": "admin",
+    "action": "attendance_delete",
+    "detail": "{\"target_date\": \"2026-05-03\", \"worker_id\": \"suxi\", \"worker_name\": \"suxrob tosh\"}"
+  }
+]
