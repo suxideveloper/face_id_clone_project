@@ -54,9 +54,14 @@ class UserDatabase:
             }
 
     def get_staff_users(self) -> dict:
-        """Faqat asosiy xodimlarni qaytaradi (doctorant bo'lmaganlar)."""
+        """Faqat asosiy xodimlarni qaytaradi (doctorant bo'lmaganlar).
+        NULL is_doctorant qiymati ham xodim sifatida hisoblanadi.
+        """
         with SessionLocal() as db:
-            users = db.query(User).filter(User.is_doctorant == False).all()
+            # NULL yoki False bo'lgan barcha foydalanuvchilar xodim hisoblanadi
+            users = db.query(User).filter(
+                (User.is_doctorant == False) | (User.is_doctorant == None)
+            ).all()
             return {
                 u.username: {
                     "full_name": u.full_name,
@@ -70,7 +75,7 @@ class UserDatabase:
             }
 
     def get_doctorant_users(self) -> dict:
-        """Faqat doctorant talabalarni qaytaradi."""
+        """Faqat doctorant talabalarni qaytaradi (is_doctorant == True)."""
         with SessionLocal() as db:
             users = db.query(User).filter(User.is_doctorant == True).all()
             return {

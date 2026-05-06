@@ -469,7 +469,9 @@ async def daily_report(request: Request):
     if user.get("role") != "admin":
         return RedirectResponse(url="/login?next=/daily_report", status_code=303)
 
-    users = user_db.get_all_users()
+    # Xodimlar va doctorantlarni alohida olish (NULL is_doctorant xodim sifatida)
+    staff_users = user_db.get_staff_users()
+    doctorant_users = user_db.get_doctorant_users()
     today_records = attendance_db.get_all_today()
     today_d = datetime.now().date()
     today_iso = today_d.isoformat()
@@ -483,8 +485,8 @@ async def daily_report(request: Request):
 
     work_start_dt, work_end_dt = work_bounds_for_date(today_d)
 
-    for name, user_data in users.items():
-        is_doc = user_data.get("is_doctorant", False)
+    # --- Asosiy xodimlarni qayta ishlash ---
+    for name, user_data in staff_users.items():
         staff_rate = user_data.get("staff_rate", 1.0)
 
         if name in today_records:
@@ -509,38 +511,73 @@ async def daily_report(request: Request):
                     pass
 
             st = classify_attendance_status(check_in_dt, check_out_dt, today_d)
-            status_label = st["label"]
-            status_type = st["type"]
-
-            entry = {
+            present_staff.append({
                 "username": name,
                 "full_name": user_data.get("full_name", name),
                 "department": user_data.get("department", "Unassigned"),
                 "check_in_time": check_in_str,
                 "check_out_time": check_out_str,
-                "status_label": status_label,
-                "status_type": status_type,
+                "status_label": st["label"],
+                "status_type": st["type"],
                 "staff_rate": staff_rate,
-                "is_doctorant": is_doc,
-            }
-
-            if is_doc:
-                present_doctorant.append(entry)
-            else:
-                present_staff.append(entry)
+                "is_doctorant": False,
+            })
         else:
             if not holiday_label:
-                absent_entry = {
+                absent_staff.append({
                     "username": name,
                     "full_name": user_data.get("full_name", name),
                     "department": user_data.get("department", "Unassigned"),
                     "staff_rate": staff_rate,
-                    "is_doctorant": is_doc,
-                }
-                if is_doc:
-                    absent_doctorant.append(absent_entry)
-                else:
-                    absent_staff.append(absent_entry)
+                    "is_doctorant": False,
+                })
+
+    # --- Doctorantlarni qayta ishlash ---
+    for name, user_data in doctorant_users.items():
+        staff_rate = user_data.get("staff_rate", 1.0)
+
+        if name in today_records:
+            record = today_records[name]
+            check_in_str = record.get("check_in_time", "")
+            check_out_str = record.get("check_out_time", "")
+            check_in_dt = None
+            check_out_dt = None
+
+            if check_in_str:
+                try:
+                    check_in_dt = datetime.fromisoformat(check_in_str)
+                    check_in_str = check_in_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            if check_out_str:
+                try:
+                    check_out_dt = datetime.fromisoformat(check_out_str)
+                    check_out_str = check_out_dt.strftime("%H:%M")
+                except ValueError:
+                    pass
+
+            st = classify_attendance_status(check_in_dt, check_out_dt, today_d)
+            present_doctorant.append({
+                "username": name,
+                "full_name": user_data.get("full_name", name),
+                "department": user_data.get("department", "Unassigned"),
+                "check_in_time": check_in_str,
+                "check_out_time": check_out_str,
+                "status_label": st["label"],
+                "status_type": st["type"],
+                "staff_rate": staff_rate,
+                "is_doctorant": True,
+            })
+        else:
+            if not holiday_label:
+                absent_doctorant.append({
+                    "username": name,
+                    "full_name": user_data.get("full_name", name),
+                    "department": user_data.get("department", "Unassigned"),
+                    "staff_rate": staff_rate,
+                    "is_doctorant": True,
+                })
 
     return templates.TemplateResponse(request=request, name="daily_report.html", context= {
         "request": request,
@@ -554,6 +591,7 @@ async def daily_report(request: Request):
         "work_start": work_start_dt.strftime("%H:%M"),
         "work_end": work_end_dt.strftime("%H:%M"),
     })
+
 
 
 @router.get("/api/daily-report/export/excel")
