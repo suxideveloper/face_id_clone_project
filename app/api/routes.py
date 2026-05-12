@@ -2264,8 +2264,8 @@ def _calculate_doctorant_stats(period: str):
         start_date = today.replace(day=1)
         end_date = today
 
-    # Standard working hours per day (e.g. 8 hours)
-    STANDARD_HOURS_PER_DAY = 8.0
+    # Standard working hours per day for doctorants is 4 hours (20 hours per week)
+    STANDARD_HOURS_PER_DAY = 4.0
     
     # Calculate working days in period (excluding weekends and holidays)
     working_days = 0
@@ -2283,8 +2283,7 @@ def _calculate_doctorant_stats(period: str):
     all_attendance = attendance_db.get_all_records(start_date=start_date.isoformat(), end_date=end_date.isoformat())
     
     for username, data in doctorants.items():
-        staff_rate = data.get("staff_rate", 1.0)
-        required_hours = working_days * STANDARD_HOURS_PER_DAY * staff_rate
+        required_hours = working_days * STANDARD_HOURS_PER_DAY
         
         # Calculate actual hours
         actual_seconds = 0
@@ -2317,7 +2316,6 @@ def _calculate_doctorant_stats(period: str):
             "username": username,
             "full_name": data.get("full_name", username),
             "department": data.get("department", "Unassigned"),
-            "staff_rate": staff_rate,
             "required_hours": required_hours,
             "actual_hours": actual_hours,
             "percentage": percentage,
@@ -2365,7 +2363,7 @@ async def export_doctorants_report_excel(request: Request, period: str = "this_w
     title_cell.alignment = Alignment(horizontal="center")
     
     row = 3
-    headers = ["#", "F.I.O", "Bo'lim", "Stavka", "Talab (soat)", "Haqiqiy (soat)", "Bajarilish %"]
+    headers = ["#", "F.I.O", "Bo'lim", "Talab (soat)", "Haqiqiy (soat)", "Bajarilish %"]
     header_fill = PatternFill(start_color="EDE9FE", end_color="EDE9FE", fill_type="solid")
     
     for col, h in enumerate(headers, 1):
@@ -2378,10 +2376,9 @@ async def export_doctorants_report_excel(request: Request, period: str = "this_w
         ws.cell(row=row, column=1, value=i)
         ws.cell(row=row, column=2, value=r["full_name"])
         ws.cell(row=row, column=3, value=r["department"])
-        ws.cell(row=row, column=4, value=r["staff_rate"])
-        ws.cell(row=row, column=5, value=round(r["required_hours"], 1))
-        ws.cell(row=row, column=6, value=round(r["actual_hours"], 1))
-        ws.cell(row=row, column=7, value=round(r["percentage"], 1))
+        ws.cell(row=row, column=4, value=round(r["required_hours"], 1))
+        ws.cell(row=row, column=5, value=round(r["actual_hours"], 1))
+        ws.cell(row=row, column=6, value=round(r["percentage"], 1))
         row += 1
         
     for col in ws.columns:
