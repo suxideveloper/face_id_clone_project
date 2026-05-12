@@ -12,8 +12,10 @@ class User(Base):
     department = Column(String, default="")
     position = Column(String, default="")
     registered = Column(Boolean, default=True)
-    is_doctorant = Column(Boolean, default=False)   # Doctorant talaba yoki yo'q
+    is_doctorant = Column(Boolean, default=False)   # Orqaga moslik uchun saqlanadi
     staff_rate = Column(Float, default=1.0)          # Shtat birligi: 0.25, 0.5, 0.75, 1.0, 1.5, 2.0
+    person_type = Column(String, default="staff")    # "staff" | "doctorant" | "visitor" | "consultant" | "project_member"
+    notes = Column(Text, default="")                 # Qo'shimcha ma'lumot (kelish maqsadi, shartnoma, loyiha nomi va h.k.)
 
     encodings = relationship("FaceEncoding", back_populates="user", cascade="all, delete-orphan")
     attendances = relationship("Attendance", back_populates="user", cascade="all, delete-orphan")

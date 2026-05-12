@@ -45,29 +45,38 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="person_type">Kategoriya</label>
+                    {% set ptype = user_info.person_type or 'staff' %}
+                    <select id="person_type" name="person_type">
+                        <option value="staff"      {% if ptype == 'staff' %}selected{% endif %}>👤 Asosiy xodim</option>
+                        <option value="doctorant"  {% if ptype == 'doctorant' %}selected{% endif %}>🎓 Doktorant (20 soat/hafta)</option>
+                        <option value="visitor"    {% if ptype == 'visitor' %}selected{% endif %}>👥 Tashrif buyuruvchi</option>
+                        <option value="consultant" {% if ptype == 'consultant' %}selected{% endif %}>🤝 Konsultant</option>
+                        <option value="project_member" {% if ptype == 'project_member' %}selected{% endif %}>📋 Loyiha ishtirokchisi</option>
+                    </select>
+                </div>
+
+                <div class="form-group" id="field-staff-rate-edit" {% if ptype not in ('staff', '') %}style="display:none;"{% endif %}>
                     <label for="staff_rate">Shtat birligi</label>
                     <select id="staff_rate" name="staff_rate">
                         {% set current_rate = user_info.staff_rate|default(1.0)|float %}
-                        <option value="0" {% if current_rate == 0 %}selected{% endif %}>0 (Faqat o'qiydi)</option>
+                        <option value="0"    {% if current_rate == 0 %}selected{% endif %}>0 (Faqat o'qiydi)</option>
                         <option value="0.25" {% if current_rate == 0.25 %}selected{% endif %}>0.25</option>
-                        <option value="0.5" {% if current_rate == 0.5 %}selected{% endif %}>0.5</option>
+                        <option value="0.5"  {% if current_rate == 0.5 %}selected{% endif %}>0.5</option>
                         <option value="0.75" {% if current_rate == 0.75 %}selected{% endif %}>0.75</option>
-                        <option value="1.0" {% if current_rate == 1.0 %}selected{% endif %}>1.0</option>
+                        <option value="1.0"  {% if current_rate == 1.0 %}selected{% endif %}>1.0</option>
                         <option value="1.25" {% if current_rate == 1.25 %}selected{% endif %}>1.25</option>
-                        <option value="1.5" {% if current_rate == 1.5 %}selected{% endif %}>1.5</option>
+                        <option value="1.5"  {% if current_rate == 1.5 %}selected{% endif %}>1.5</option>
                         <option value="1.75" {% if current_rate == 1.75 %}selected{% endif %}>1.75</option>
-                        <option value="2.0" {% if current_rate == 2.0 %}selected{% endif %}>2.0</option>
+                        <option value="2.0"  {% if current_rate == 2.0 %}selected{% endif %}>2.0</option>
                     </select>
                 </div>
 
                 <div class="form-group">
-                    <label class="checkbox-label" for="is_doctorant">
-                        <input type="checkbox" id="is_doctorant" name="is_doctorant" value="true"
-                            {% if user_info.is_doctorant %}checked{% endif %}
-                            style="width: auto; margin-right: 8px;">
-                        🎓 Doctorant talaba
-                    </label>
-                    <small style="color: var(--text-light);">Doctorant sifatida belgilansa, hisobotlarda alohida ko'rsatiladi</small>
+                    <label for="notes">Qo'shimcha ma'lumot</label>
+                    <input type="text" id="notes" name="notes" value="{{ user_info.notes or '' }}"
+                        placeholder="Kelish maqsadi / Shartnoma / Loyiha nomi / Kurs va rahbar">
+                    <small style="color:var(--text-light);">Kategoriyaga qarab: kurs, maqsad, loyiha nomi va h.k.</small>
                 </div>
 
                 <div class="form-actions">
@@ -82,7 +91,7 @@
 </div>
 
 <div class="mt-6">
-    <a href="/users" class="back-link">← Back to Employees</a>
+    <a href="/users" class="back-link">← Xodimlar ro'yxatiga qaytish</a>
 </div>
 
 <style>

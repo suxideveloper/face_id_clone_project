@@ -1,0 +1,323 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="page-header">
+    <div style="display:flex; align-items:center; gap:14px;">
+        <span style="font-size:2.2rem; line-height:1;">{{ category_icon }}</span>
+        <div>
+            <h1 style="margin:0; font-size:1.6rem;">{{ category_title }}</h1>
+            <p style="margin:4px 0 0; color:var(--text-light); font-size:0.88rem;">
+                Jami: <strong>{{ records|length }}</strong> ta &nbsp;|&nbsp;
+                Bugun kelgan: <strong>{{ records|selectattr('present_today')|list|length }}</strong> ta
+            </p>
+        </div>
+    </div>
+    <div class="header-actions">
+        {% if user and user.role == "superadmin" %}
+        <a href="/register" class="btn btn-primary" style="text-decoration:none;">
+            + Yangi qo'shish
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Stats cards -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px;">
+    <div class="stat-card" style="border-left:4px solid {{ category_color }};">
+        <div class="stat-value">{{ records|length }}</div>
+        <div class="stat-label">Jami</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #10b981;">
+        <div class="stat-value">{{ records|selectattr('present_today')|list|length }}</div>
+        <div class="stat-label">Bugun kelgan</div>
+    </div>
+    <div class="stat-card" style="border-left:4px solid #ef4444;">
+        <div class="stat-value">{{ records|rejectattr('present_today')|list|length }}</div>
+        <div class="stat-label">Bugun kelmagan</div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="filters-bar">
+    <input type="text" id="searchInput" placeholder="Ism yoki ID bo'yicha..." style="flex:2; min-width:180px;">
+    <select id="deptFilter" style="min-width:150px;">
+        <option value="">Barcha bo'limlar</option>
+        {% for dept in departments %}
+        <option value="{{ dept.name }}">{{ dept.name }}</option>
+        {% endfor %}
+    </select>
+    <select id="statusFilter" style="min-width:140px;">
+        <option value="">Barcha holat</option>
+        <option value="present">Kelgan</option>
+        <option value="absent">Kelmagan</option>
+    </select>
+    <button id="resetFilters" class="btn btn-secondary">Tozalash</button>
+    
+    {% if category_type == 'visitor' %}
+        <a href="/api/category/visitors/export" class="btn btn-primary" style="margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">📥 Barcha tarixni yuklash (Excel)</a>
+    {% elif category_type == 'consultant' %}
+        <a href="/api/category/consultants/export" class="btn btn-primary" style="margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">📥 Barcha tarixni yuklash (Excel)</a>
+    {% elif category_type == 'project_member' %}
+        <a href="/api/category/project-members/export" class="btn btn-primary" style="margin-left: auto; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">📥 Barcha tarixni yuklash (Excel)</a>
+    {% endif %}
+</div>
+
+<!-- Table -->
+<div class="table-container">
+    <table class="modern-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>F.I.Sh.</th>
+                <th>Telefon</th>
+                <th>Bo'lim</th>
+                <th>Lavozim</th>
+                <th>{{ notes_label }}</th>
+                <th>Holat</th>
+                <th>Kirish</th>
+                <th>Chiqish</th>
+                <th>Rasmlar</th>
+                {% if user and user.role == "superadmin" %}
+                <th>Amallar</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in records %}
+            <tr data-name="{{ r.username }}" data-dept="{{ r.department|lower }}"
+                data-status="{{ 'present' if r.present_today else 'absent' }}">
+                <td style="color:var(--text-light); font-size:0.85rem;">{{ loop.index }}</td>
+                <td>
+                    <a href="/users/{{ r.username }}" class="user-link">
+                        {{ r.full_name or r.username }}
+                    </a>
+                </td>
+                <td style="color:var(--text-medium); font-size:0.88rem;">{{ r.phone or '—' }}</td>
+                <td>
+                    {% if r.department %}
+                    <span class="badge {{ r.department }}">{{ r.department }}</span>
+                    {% else %}<span style="color:var(--text-light);">—</span>{% endif %}
+                </td>
+                <td style="color:var(--text-medium); font-size:0.88rem;">{{ r.position or '—' }}</td>
+                <td>
+                    {% if r.notes %}
+                    <span style="font-size:0.85rem; color:var(--text-medium); max-width:180px; display:inline-block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="{{ r.notes }}">{{ r.notes }}</span>
+                    {% else %}<span style="color:var(--text-light);">—</span>{% endif %}
+                </td>
+                <td>
+                    {% if r.present_today %}
+                    <span class="status-badge present">✅ Keldi</span>
+                    {% else %}
+                    <span class="status-badge absent">❌ Kelmadi</span>
+                    {% endif %}
+                </td>
+                <td style="font-weight:600; color:var(--text-dark);">
+                    {{ r.check_in or '—' }}
+                </td>
+                <td style="font-weight:600; color:var(--text-medium);">
+                    {{ r.check_out or '—' }}
+                </td>
+                <!-- Rasmlar (face snapshots) -->
+                <td>
+                    <div style="display:flex; gap:6px; align-items:center;">
+                        {% if r.check_in_snapshot %}
+                        <img src="{{ r.check_in_snapshot }}"
+                             class="snapshot-thumb"
+                             onclick="openSnapModal('{{ r.check_in_snapshot }}')"
+                             title="Kirish rasmi">
+                        {% else %}
+                        <span style="color:var(--text-light); font-size:0.82rem;">—</span>
+                        {% endif %}
+
+                        {% if r.check_out_snapshot %}
+                        <img src="{{ r.check_out_snapshot }}"
+                             class="snapshot-thumb checkout-thumb"
+                             onclick="openSnapModal('{{ r.check_out_snapshot }}')"
+                             title="Chiqish rasmi">
+                        {% endif %}
+                    </div>
+                </td>
+                {% if user and user.role == "superadmin" %}
+                <td>
+                    <div style="display:flex; gap:6px;">
+                        <a href="/users/{{ r.username }}" class="btn-action btn-view">Ko'rish</a>
+                        <a href="/users/{{ r.username }}/edit" class="btn-action btn-edit">Tahrirlash</a>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="11" class="text-center" style="padding:40px; color:var(--text-light);">
+                    {{ category_title }} ro'yxati bo'sh.
+                    {% if user and user.role == "superadmin" %}
+                    <a href="/register" style="color:var(--primary);">Yangi qo'shish</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Snapshot Modal (xuddi Davomat sahifasidagi kabi) -->
+<div id="snapModal" class="snap-modal">
+    <span class="snap-close" onclick="closeSnapModal()">&times;</span>
+    <img id="snapModalImg" class="snap-modal-img">
+</div>
+
+<style>
+    .stat-card {
+        background: var(--bg-white);
+        border-radius: var(--radius-md);
+        padding: 20px 24px;
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border-color);
+    }
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 800;
+        color: var(--text-dark);
+        line-height: 1;
+        margin-bottom: 6px;
+    }
+    .stat-label {
+        font-size: 0.82rem;
+        color: var(--text-light);
+        font-weight: 500;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .user-link {
+        color: var(--primary);
+        text-decoration: none;
+        font-weight: 600;
+    }
+    .user-link:hover { text-decoration: underline; }
+    .status-badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    .status-badge.present {
+        background: rgba(16,185,129,0.12);
+        color: #059669;
+    }
+    .status-badge.absent {
+        background: rgba(239,68,68,0.1);
+        color: #dc2626;
+    }
+
+    /* ===== SNAPSHOT THUMBNAILS ===== */
+    .snapshot-thumb {
+        height: 42px;
+        width: auto;
+        border-radius: 6px;
+        border: 2px solid var(--border-color);
+        cursor: pointer;
+        transition: all 0.2s;
+        object-fit: cover;
+    }
+    .snapshot-thumb:hover {
+        border-color: #10b981;
+        transform: scale(1.08);
+        box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+    .checkout-thumb {
+        border-color: #6366f1;
+    }
+    .checkout-thumb:hover {
+        border-color: #6366f1;
+        box-shadow: 0 4px 12px rgba(99,102,241,0.3);
+    }
+
+    /* ===== SNAPSHOT MODAL ===== */
+    .snap-modal {
+        display: none;
+        position: fixed;
+        z-index: 3000;
+        left: 0; top: 0;
+        width: 100%; height: 100%;
+        background: rgba(0,0,0,0.92);
+        justify-content: center;
+        align-items: center;
+    }
+    .snap-modal.open {
+        display: flex;
+    }
+    .snap-modal-img {
+        max-width: 85%;
+        max-height: 85vh;
+        border-radius: 12px;
+        animation: snapZoom 0.25s ease;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    @keyframes snapZoom {
+        from { transform: scale(0.75); opacity: 0; }
+        to   { transform: scale(1);    opacity: 1; }
+    }
+    .snap-close {
+        position: absolute;
+        top: 18px; right: 36px;
+        color: #fff;
+        font-size: 42px;
+        font-weight: 700;
+        cursor: pointer;
+        line-height: 1;
+        transition: color 0.2s;
+    }
+    .snap-close:hover { color: #ef4444; }
+</style>
+
+<script>
+    const rows = Array.from(document.querySelectorAll('tbody tr[data-name]'));
+
+    function filterRows() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        const dept = document.getElementById('deptFilter').value.toLowerCase();
+        const status = document.getElementById('statusFilter').value;
+
+        rows.forEach(row => {
+            const name = (row.querySelector('.user-link')?.textContent || '').toLowerCase();
+            const id = (row.dataset.name || '').toLowerCase();
+            const rowDept = (row.dataset.dept || '').toLowerCase();
+            const rowStatus = row.dataset.status || '';
+
+            const matchSearch = !search || name.includes(search) || id.includes(search);
+            const matchDept = !dept || rowDept === dept;
+            const matchStatus = !status || rowStatus === status;
+
+            row.style.display = (matchSearch && matchDept && matchStatus) ? '' : 'none';
+        });
+    }
+
+    document.getElementById('searchInput').addEventListener('input', filterRows);
+    document.getElementById('deptFilter').addEventListener('change', filterRows);
+    document.getElementById('statusFilter').addEventListener('change', filterRows);
+    document.getElementById('resetFilters').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        document.getElementById('deptFilter').value = '';
+        document.getElementById('statusFilter').value = '';
+        filterRows();
+    });
+
+    // Snapshot modal
+    function openSnapModal(src) {
+        const modal = document.getElementById('snapModal');
+        document.getElementById('snapModalImg').src = src;
+        modal.classList.add('open');
+    }
+    function closeSnapModal() {
+        document.getElementById('snapModal').classList.remove('open');
+    }
+    document.getElementById('snapModal').addEventListener('click', function(e) {
+        if (e.target === this) closeSnapModal();
+    });
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') closeSnapModal();
+    });
+</script>
+{% endblock %}

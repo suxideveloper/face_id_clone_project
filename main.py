@@ -1,4 +1,3 @@
-from logging import debug
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +8,7 @@ from contextlib import asynccontextmanager
 from app.core.config import settings
 from app.api import routes
 import os
+import asyncio
 import logging
 
 # Suppress "Invalid HTTP request received" warnings (caused by RTSP/network noise)
@@ -36,8 +36,6 @@ async def lifespan(app: FastAPI):
     print(f"Allowed Hosts: {settings.ALLOWED_HOSTS}")
     
     # Start attendance processor background task
-    from app.api.routes import start_attendance_processor
-    import asyncio
     asyncio.create_task(routes.process_attendance_queue())
     from app.services.telegram_notify import ensure_telegram_long_poll_mode
     ensure_telegram_long_poll_mode()

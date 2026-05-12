@@ -7,6 +7,7 @@ from app.services.recognizer import recognizer
 import cv2
 import numpy as np
 import time
+import shutil
 from datetime import datetime, timedelta, date as date_type
 from io import BytesIO
 import asyncio
@@ -344,15 +345,20 @@ def get_current_admin(request: Request):
         return None
     
     username = active_sessions[session_id]
-    # Fetch full user details (mocking verification again or just trusting session)
-    # Ideally we should store user role in session or fetch from DB. 
-    # For now, let's fetch from DB to be safe and get the role.
-    from app.services.admin_db import _load_admins # Or expose a get_user method
+    from app.services.admin_db import _load_admins
     admins = _load_admins()
     user = admins.get(username)
     if user and "role" not in user:
-        user["role"] = "admin"
+        user["role"] = "admin"  # BUG 7 fix: default to least-privilege role, not superadmin
     return user
+
+def require_admin_or_superadmin(user) -> bool:
+    """admin yoki superadmin roli talab qilinadi (read-only access)."""
+    return user is not None and user.get("role") in ("admin", "superadmin")
+
+def require_superadmin(user) -> bool:
+    """Faqat superadmin (yozish/o'zgartirish huquqi)."""
+    return user is not None and user.get("role") == "superadmin"
 
 TELEGRAM_SENT_FLAG = os.path.join(settings.DATA_DIR, "telegram_last_sent.txt")
 
@@ -408,8 +414,8 @@ async def index(request: Request):
     if not user:
         return RedirectResponse(url="/login?next=/", status_code=303)
         
-    # Strict separation: Admin users cannot access Kiosk dashboard
-    if user.get("role") == "admin":
+    # Strict separation: Admin/superadmin users cannot access Kiosk dashboard
+    if user.get("role") in ("admin", "superadmin"):
         return RedirectResponse(url="/admin", status_code=303)
 
         
@@ -466,7 +472,7 @@ async def daily_report(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    if user.get("role") != "admin":
+    if not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/daily_report", status_code=303)
 
     # Xodimlar va doctorantlarni alohida olish (NULL is_doctorant xodim sifatida)
@@ -598,10 +604,9 @@ async def daily_report(request: Request):
 async def export_daily_report_excel(request: Request):
     """Kunlik hisobotni Excel (.xlsx) fayl sifatida yuklab olish."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
-
-    from openpyxl import Workbook
+    from openpyxl import Workbook  # BUG 4 fix: Workbook was missing
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 
     users = user_db.get_all_users()
@@ -815,8 +820,8 @@ async def admin_dashboard(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    # Check if user has admin role
-    if user.get("role") != "admin":
+    # Check if user has admin or superadmin role
+    if not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/admin", status_code=303)
 
     
@@ -1225,11 +1230,11 @@ async def register_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    # Allow both admin and kiosk roles
-    # if user.get("role") not in ["admin", "kiosk"]:
-    #    return RedirectResponse(url="/", status_code=303)
+    # Faqat superadmin yangi xodim ro'yxatdan o'tkaza oladi
+    if not require_superadmin(user):
+        return RedirectResponse(url="/admin", status_code=303)
         
-    return templates.TemplateResponse(request=request, name="register.html", context= {"request": request, "departments": departments_db.get_all()})
+    return templates.TemplateResponse(request=request, name="register.html", context= {"request": request, "departments": departments_db.get_all(), "user": user})
 
 
 @router.get("/api/registration-state")
@@ -1338,8 +1343,10 @@ async def complete_registration(
     phone: str = Form(""),
     department: str = Form(""),
     position: str = Form(""),
-    is_doctorant: str = Form("false"),
-    staff_rate: str = Form("1.0")
+    person_type: str = Form("staff"),
+    is_doctorant: str = Form("false"),   # orqaga moslik uchun saqlanadi
+    staff_rate: str = Form("1.0"),
+    notes: str = Form("")
 ):
     """Step 2: Complete registration with captured images and user details"""
     
@@ -1352,12 +1359,27 @@ async def complete_registration(
     
     images = captured_faces_temp[name]
     
-    # Parse doctorant checkbox va staff_rate
-    doc_flag = is_doctorant.lower() in ("true", "1", "on", "yes")
+    # person_type ni aniqlash (is_doctorant bilan orqaga moslik)
+    if person_type not in ("staff", "doctorant", "visitor", "consultant", "project_member"):
+        person_type = "staff"
+    # Agar is_doctorant=true kelsa va person_type='staff' bo'lsa — doctorant deb qabul qilamiz
+    if is_doctorant.lower() in ("true", "1", "on", "yes") and person_type == "staff":
+        person_type = "doctorant"
+
     try:
         rate_val = float(staff_rate)
     except (ValueError, TypeError):
         rate_val = 1.0
+    
+    # Redirect manzilini person_type ga qarab aniqlash
+    redirect_map = {
+        "staff": "/users",
+        "doctorant": "/admin/doctorants-report",
+        "visitor": "/admin/visitors",
+        "consultant": "/admin/consultants",
+        "project_member": "/admin/project-members",
+    }
+    redirect_url = redirect_map.get(person_type, "/users")
     
     try:
         # Create user record FIRST (face_encodings has FK to users)
@@ -1366,8 +1388,9 @@ async def complete_registration(
             "phone": phone,
             "department": department,
             "position": position,
-            "is_doctorant": doc_flag,
+            "person_type": person_type,
             "staff_rate": rate_val,
+            "notes": notes,
         })
 
         success = await asyncio.to_thread(recognizer.register_user, name, images)
@@ -1379,7 +1402,8 @@ async def complete_registration(
             del captured_faces_temp[name]
             return JSONResponse(content={
                 "success": True,
-                "message": f"User {name} registered successfully!"
+                "message": f"User {name} registered successfully!",
+                "redirect_url": redirect_url
             })
         else:
             # Rollback: delete user if face encoding failed
@@ -1400,25 +1424,37 @@ async def list_users(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
     
-    if user.get("role") != "admin":
+    if not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/users", status_code=303)
         
-    # Get UNIQUE user names from recognizer (not flat list which has duplicates)
+    # Faqat asosiy xodimlar (staff) ko'rsatiladi
+    # Boshqa kategoriyalar o'z sahifalarida ko'rsatiladi
     unique_names = recognizer.get_all_user_names()
-    # Enrich with user data from database
     users_data = []
     for name in unique_names:
         user_info = user_db.get_user(name) or {}
+        ptype = user_info.get("person_type", "staff")
+        # Faqat staff kategoriyasini ko'rsatish
+        if ptype != "staff":
+            continue
         users_data.append({
             "id": name,
             "full_name": user_info.get("full_name", name),
             "phone": user_info.get("phone", ""),
             "department": user_info.get("department", ""),
             "position": user_info.get("position", ""),
-            "is_doctorant": user_info.get("is_doctorant", False),
+            "is_doctorant": False,
             "staff_rate": user_info.get("staff_rate", 1.0),
+            "person_type": "staff",
+            "notes": user_info.get("notes", ""),
         })
-    return templates.TemplateResponse(request=request, name="users.html", context= {"request": request, "users": users_data, "departments": departments_db.get_all()})
+    return templates.TemplateResponse(request=request, name="users.html", context={
+        "request": request,
+        "users": users_data,
+        "departments": departments_db.get_all(),
+        "user": user,
+        "current_user": user
+    })
 
 @router.get("/users/{name}")
 async def user_detail(request: Request, name: str):
@@ -1426,9 +1462,10 @@ async def user_detail(request: Request, name: str):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
         
-    if user.get("role") != "admin":
+    if not require_admin_or_superadmin(user):
         return RedirectResponse(url="/", status_code=303)
 
+    # BUG 1 fix: user_dir was never defined
     user_dir = os.path.join(settings.IMAGES_DIR, name)
     images = []
     if os.path.exists(user_dir):
@@ -1438,7 +1475,8 @@ async def user_detail(request: Request, name: str):
     user_info = user_db.get_user(name) or {}
     
     return templates.TemplateResponse(request=request, name="user_detail.html", context= {
-        "request": request, 
+        "request": request,
+        "user": user,  # BUG 9 fix: pass logged-in admin to template for navbar rendering
         "name": name, 
         "images": sorted(images),
         "user_info": user_info
@@ -1450,13 +1488,17 @@ async def edit_user_page(request: Request, name: str):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
         
-    if user.get("role") != "admin":
-        return RedirectResponse(url="/", status_code=303)
-        
+    # Faqat superadmin xodimni tahrirlashi mumkin
+    if not require_superadmin(user):
+        return RedirectResponse(url="/users", status_code=303)
+
+    # BUG 2 fix: user_info was never fetched before being used in the template
     user_info = user_db.get_user(name) or {}
+
     return templates.TemplateResponse(request=request, name="user_edit.html", context= {
         "request": request,
         "name": name,
+        "user": user,
         "user_info": user_info,
         "departments": departments_db.get_all()
     })
@@ -1469,15 +1511,20 @@ async def update_user(
     phone: str = Form(""),
     department: str = Form(""),
     position: str = Form(""),
-    is_doctorant: str = Form("false"),
-    staff_rate: str = Form("1.0")
+    person_type: str = Form("staff"),
+    is_doctorant: str = Form("false"),   # orqaga moslik
+    staff_rate: str = Form("1.0"),
+    notes: str = Form("")
 ):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse(status_code=403, content={"message": "Unauthorized"})
     
-    # Parse doctorant checkbox va staff_rate
-    doc_flag = is_doctorant.lower() in ("true", "1", "on", "yes")
+    if person_type not in ("staff", "doctorant", "visitor", "consultant", "project_member"):
+        person_type = "staff"
+    if is_doctorant.lower() in ("true", "1", "on", "yes") and person_type == "staff":
+        person_type = "doctorant"
+    
     try:
         rate_val = float(staff_rate)
     except (ValueError, TypeError):
@@ -1488,8 +1535,10 @@ async def update_user(
         "phone": phone,
         "department": department,
         "position": position,
-        "is_doctorant": doc_flag,
+        "person_type": person_type,
+        "is_doctorant": (person_type == "doctorant"),
         "staff_rate": rate_val,
+        "notes": notes,
     })
     if success:
         return JSONResponse(content={"message": f"User {name} updated successfully."})
@@ -1500,17 +1549,18 @@ async def update_user(
             "phone": phone,
             "department": department,
             "position": position,
-            "is_doctorant": doc_flag,
+            "person_type": person_type,
             "staff_rate": rate_val,
+            "notes": notes,
         })
         return JSONResponse(content={"message": f"User {name} profile created."})
+
 
 @router.delete("/api/users/{name}")
 async def delete_user(request: Request, name: str):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse(status_code=403, content={"message": "Unauthorized"})
-    import shutil
     # Delete from recognizer (remove ALL encodings for this user from DB)
     recognizer.delete_user_encodings(name)
         
@@ -1770,15 +1820,9 @@ async def process_attendance_queue():
         await asyncio.sleep(0)
 
 
-# Start the background task when the module loads
-_attendance_task = None
-
-def start_attendance_processor():
-    """Start the attendance processing background task."""
-    global _attendance_task
-    if _attendance_task is None:
-        loop = asyncio.get_event_loop()
-        _attendance_task = loop.create_task(process_attendance_queue())
+# BUG 11 fix: Removed dead start_attendance_processor() function that used
+# deprecated asyncio.get_event_loop() and was never called.
+# The task is properly started via asyncio.create_task() in main.py lifespan.
 
 
 # ========== ATTENDANCE API ENDPOINTS ==========
@@ -1790,11 +1834,11 @@ async def attendance_page(request: Request):
     if not user:
         return RedirectResponse(url="/login", status_code=303)
         
-    if user.get("role") != "admin":
+    if not require_admin_or_superadmin(user):
         return RedirectResponse(url="/", status_code=303)
-        
-    all_records = attendance_db.get_all_records()
     
+    all_records = attendance_db.get_all_records()
+
     # Enrich records with user details and calculations
     display_records = []
     for record in all_records:
@@ -1826,7 +1870,7 @@ async def attendance_page(request: Request):
                     abet_applied = True
                 else:
                     net_hours = working_hours
-            except:
+            except Exception:
                 pass
         
         display_records.append({
@@ -1850,7 +1894,8 @@ async def attendance_page(request: Request):
     display_records.sort(key=lambda x: x["check_in_time"] or "", reverse=True)
     
     return templates.TemplateResponse(request=request, name="attendance.html", context= {
-        "request": request, 
+        "request": request,
+        "user": user,
         "attendance_records": display_records,
         "departments": departments_db.get_all()
     })
@@ -1859,7 +1904,7 @@ async def attendance_page(request: Request):
 async def delete_attendance_record(request: Request, date_str: str, worker_id: str):
     """Delete a specific attendance record."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"success": False, "message": "Forbidden"}, status_code=403)
     info = user_db.get_user(worker_id) or {}
     wname = info.get("full_name", worker_id)
@@ -1874,13 +1919,21 @@ async def get_all_attendance(
     start_date: str = None, 
     end_date: str = None
 ):
-    """Get all attendance records enriched with user details."""
+    """Get all attendance records enriched with user details.
+    Faqat asosiy xodimlar (staff, doctorant) ko'rsatiladi.
+    """
     raw_records = attendance_db.get_all_records(start_date, end_date)
     enriched_records = []
     
     for record in raw_records:
         worker_id = record["worker_id"]
         user_info = user_db.get_user(worker_id) or {}
+        
+        # Faqat staff va doctorant — boshqalar Davomat sahifasida ko'rinmasin
+        ptype = user_info.get("person_type", "staff")
+        if ptype not in ("staff", "doctorant", None, ""):
+            continue
+
         is_doc = user_info.get("is_doctorant", False)
         staff_rate = user_info.get("staff_rate", 1.0)
 
@@ -1953,6 +2006,7 @@ async def get_all_attendance(
 
 
 def _format_working_hours(check_in_iso, check_out_iso) -> str:
+
     if not check_in_iso or not check_out_iso:
         return "-"
     try:
@@ -1999,14 +2053,20 @@ async def export_attendance_excel(
         date_list.append(current)
         current += timedelta(days=1)
 
-    # 1. Barcha xodimlar va yozuvlarni olamiz
-    users = user_db.get_all_users()
+    # 1. Faqat asosiy xodimlar (staff, doctorant) — boshqalar Excel'da ko'rinmasin
+    staff_users = {
+        uid: uinfo for uid, uinfo in user_db.get_all_users().items()
+        if uinfo.get("person_type", "staff") in ("staff", "doctorant", None, "")
+    }
     raw_records = attendance_db.get_all_records(start_date, end_date)
 
     # 2. Yozuvlarni xodim va sana bo'yicha guruhlaymiz: dict[worker_id][date_str] = record
     user_records = {}
     for r in raw_records:
         wid = r["worker_id"]
+        # Faqat staff/doctorant yozuvlarini olamiz
+        if wid not in staff_users:
+            continue
         d_str = r.get("date")
         if not d_str:
             continue
@@ -2095,8 +2155,8 @@ async def export_attendance_excel(
 
     # Ma'lumotlar qatori
     user_idx = 1
-    # Sort users by full name
-    sorted_users = sorted(users.items(), key=lambda item: item[1].get("full_name", item[0]))
+    # Sort users by full name (faqat staff/doctorant)
+    sorted_users = sorted(staff_users.items(), key=lambda item: item[1].get("full_name", item[0]))
     
     for wid, uinfo in sorted_users:
         fname = uinfo.get("full_name", wid)
@@ -2236,7 +2296,7 @@ def _calculate_doctorant_stats(period: str):
                     sec = (cout - cin).total_seconds()
                     if sec > 0:
                         actual_seconds += sec
-                except:
+                except Exception:
                     pass
         
         actual_hours = actual_seconds / 3600.0
@@ -2271,7 +2331,7 @@ def _calculate_doctorant_stats(period: str):
 @router.get("/admin/doctorants-report")
 async def doctorants_report_page(request: Request, period: str = "this_week"):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/admin/doctorants-report", status_code=303)
         
     records, completed_count, pending_count = await asyncio.to_thread(_calculate_doctorant_stats, period)
@@ -2288,10 +2348,8 @@ async def doctorants_report_page(request: Request, period: str = "this_week"):
 @router.get("/api/doctorants-report/export/excel")
 async def export_doctorants_report_excel(request: Request, period: str = "this_week"):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
-        
-    from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment
     
     records, _, _ = await asyncio.to_thread(_calculate_doctorant_stats, period)
@@ -2346,10 +2404,283 @@ async def export_doctorants_report_excel(request: Request, period: str = "this_w
         headers={"Content-Disposition": f'attachment; filename="doctorant_report_{period}.xlsx"'},
     )
 
+
+# ========== YANGI KATEGORIYA SAHIFALARI ==========
+
+def _build_category_page_context(category_users: dict, category_type: str, today_records: dict) -> list:
+    """Kategoriya sahifasi uchun foydalanuvchi ma'lumotlarini qaytaradi."""
+    result = []
+    for name, udata in category_users.items():
+        record = today_records.get(name)
+        check_in = ""
+        check_out = ""
+        check_in_snapshot = ""
+        check_out_snapshot = ""
+        if record:
+            if record.get("check_in_time"):
+                try:
+                    check_in = datetime.fromisoformat(record["check_in_time"]).strftime("%H:%M")
+                except Exception:
+                    pass
+            if record.get("check_out_time"):
+                try:
+                    check_out = datetime.fromisoformat(record["check_out_time"]).strftime("%H:%M")
+                except Exception:
+                    pass
+            # Snapshot rasmlarini olish
+            if record.get("check_in_snapshot"):
+                snap_path = record["check_in_snapshot"]
+                check_in_snapshot = "/snapshots/" + snap_path.split("/")[-1]
+            if record.get("check_out_snapshot"):
+                snap_path = record["check_out_snapshot"]
+                check_out_snapshot = "/snapshots/" + snap_path.split("/")[-1]
+        result.append({
+            "username": name,
+            "full_name": udata.get("full_name", name),
+            "phone": udata.get("phone", ""),
+            "department": udata.get("department", ""),
+            "position": udata.get("position", ""),
+            "notes": udata.get("notes", ""),
+            "person_type": category_type,
+            "present_today": bool(record),
+            "check_in": check_in,
+            "check_out": check_out,
+            "check_in_snapshot": check_in_snapshot,
+            "check_out_snapshot": check_out_snapshot,
+        })
+    result.sort(key=lambda x: x["full_name"])
+    return result
+
+
+@router.get("/admin/visitors")
+async def visitors_page(request: Request):
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return RedirectResponse(url="/login?next=/admin/visitors", status_code=303)
+    today_records = attendance_db.get_all_today()
+    category_users = user_db.get_visitors()
+    records = _build_category_page_context(category_users, "visitor", today_records)
+    return templates.TemplateResponse(request=request, name="category_page.html", context={
+        "request": request, "user": user,
+        "category_title": "Tashrif buyuruvchilar",
+        "category_icon": "👥",
+        "category_type": "visitor",
+        "category_color": "#0ea5e9",
+        "records": records,
+        "departments": departments_db.get_all(),
+        "notes_label": "Kelish maqsadi",
+    })
+
+
+@router.get("/admin/consultants")
+async def consultants_page(request: Request):
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return RedirectResponse(url="/login?next=/admin/consultants", status_code=303)
+    today_records = attendance_db.get_all_today()
+    category_users = user_db.get_consultants()
+    records = _build_category_page_context(category_users, "consultant", today_records)
+    return templates.TemplateResponse(request=request, name="category_page.html", context={
+        "request": request, "user": user,
+        "category_title": "Konsultantlar",
+        "category_icon": "🤝",
+        "category_type": "consultant",
+        "category_color": "#f59e0b",
+        "records": records,
+        "departments": departments_db.get_all(),
+        "notes_label": "Shartnoma / Soha",
+    })
+
+
+@router.get("/admin/project-members")
+async def project_members_page(request: Request):
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return RedirectResponse(url="/login?next=/admin/project-members", status_code=303)
+    today_records = attendance_db.get_all_today()
+    category_users = user_db.get_project_members()
+    records = _build_category_page_context(category_users, "project_member", today_records)
+    return templates.TemplateResponse(request=request, name="category_page.html", context={
+        "request": request, "user": user,
+        "category_title": "Loyiha ishtirokchilari",
+        "category_icon": "📋",
+        "category_type": "project_member",
+        "category_color": "#10b981",
+        "records": records,
+        "departments": departments_db.get_all(),
+        "notes_label": "Loyiha nomi",
+    })
+
+
+# ========== KATEGORIYA EXCEL EKSPORT ==========
+
+def _build_category_excel(category_users: dict, category_title: str, start_date: str = None, end_date: str = None):
+    """Kategoriya foydalanuvchilari uchun Excel fayl yaratadi (barcha tarix)."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from datetime import date as _date_cls, timedelta as _timedelta
+
+    today = _date_cls.today()
+    end_date = end_date or today.isoformat()
+    start_date = start_date or (today - _timedelta(days=365)).isoformat()
+
+    try:
+        start_dt = _date_cls.fromisoformat(start_date)
+        end_dt = _date_cls.fromisoformat(end_date)
+    except ValueError:
+        start_dt = today - _timedelta(days=365)
+        end_dt = today
+
+    date_list = []
+    cur = start_dt
+    while cur <= end_dt:
+        date_list.append(cur)
+        cur += _timedelta(days=1)
+
+    raw_records = attendance_db.get_all_records(start_date, end_date)
+    user_records = {}
+    for r in raw_records:
+        wid = r["worker_id"]
+        if wid not in category_users:
+            continue
+        d_str = r.get("date")
+        if not d_str:
+            continue
+        user_records.setdefault(wid, {})[d_str] = r
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = category_title[:31]
+
+    bold_f = Font(bold=True, size=10)
+    title_f = Font(bold=True, size=13)
+    ca = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    la = Alignment(horizontal="left", vertical="center", wrap_text=True)
+    hfill = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    wfill = PatternFill(start_color="FFDDBB", end_color="FFDDBB", fill_type="solid")
+    pfill = PatternFill(start_color="D1FAE5", end_color="D1FAE5", fill_type="solid")
+    brd = Border(left=Side(style="thin"), right=Side(style="thin"),
+                 top=Side(style="thin"), bottom=Side(style="thin"))
+
+    ws.row_dimensions[1].height = 35
+    ws.row_dimensions[2].height = 25
+
+    try:
+        from openpyxl.drawing.image import Image as _XLImg
+        import os as _os
+        _lp = "static/logo.png"
+        if _os.path.exists(_lp):
+            _im = _XLImg(_lp)
+            _im.width, _im.height = 280, 47
+            ws.merge_cells("A1:E2")
+            ws.add_image(_im, "A1")
+    except Exception:
+        pass
+
+    total_cols = 5 + len(date_list)
+    ws.merge_cells(start_row=3, start_column=1, end_row=3, end_column=total_cols)
+    tc = ws.cell(row=3, column=1, value=f"{category_title} — Davomat hisoboti ({start_date} dan {end_date} gacha)")
+    tc.font = title_f
+    tc.alignment = ca
+
+    row = 5
+    for i, h in enumerate(["#", "ID", "To'liq ism", "Bo'lim", "Lavozim"], 1):
+        c = ws.cell(row=row, column=i, value=h)
+        c.font = bold_f; c.fill = hfill; c.alignment = ca; c.border = brd
+
+    days_uz = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]
+    for i, d in enumerate(date_list, 6):
+        c = ws.cell(row=row, column=i, value=d.strftime("%d.%m") + "\n" + days_uz[d.weekday()])
+        c.font = bold_f; c.alignment = ca; c.border = brd
+        c.fill = wfill if d.weekday() >= 5 else hfill
+
+    row += 1
+    for idx, (wid, uinfo) in enumerate(
+        sorted(category_users.items(), key=lambda x: x[1].get("full_name", x[0])), 1
+    ):
+        for col, val, aln in [
+            (1, idx, ca), (2, wid, ca),
+            (3, uinfo.get("full_name", wid), la),
+            (4, uinfo.get("department", "-"), ca),
+            (5, uinfo.get("position", "-"), ca),
+        ]:
+            c = ws.cell(row=row, column=col, value=val)
+            c.border = brd; c.alignment = aln
+
+        for i, d in enumerate(date_list, 6):
+            c = ws.cell(row=row, column=i)
+            c.border = brd; c.alignment = ca
+            if d.weekday() >= 5:
+                c.fill = wfill
+            rec = user_records.get(wid, {}).get(d.isoformat())
+            if rec:
+                ci = rec.get("check_in_time")
+                co = rec.get("check_out_time")
+                ci_d = ci.split("T")[1][:5] if ci else "-"
+                co_d = co.split("T")[1][:5] if co else "-"
+                wh = _format_working_hours(ci, co)
+                c.value = f"K:{ci_d}\nC:{co_d}" if wh == "-" else f"K:{ci_d}\nC:{co_d}\n{wh}"
+                if d.weekday() < 5:
+                    c.fill = pfill
+        row += 1
+
+    ws.column_dimensions["B"].width = 14
+    ws.column_dimensions["C"].width = 28
+    ws.column_dimensions["D"].width = 16
+    ws.column_dimensions["E"].width = 16
+    for i in range(6, total_cols + 1):
+        ws.column_dimensions[ws.cell(row=5, column=i).column_letter].width = 11
+    ws.freeze_panes = "F6"
+    return wb
+
+
+@router.get("/api/category/visitors/export")
+async def export_visitors_excel(request: Request, start_date: str = None, end_date: str = None):
+    """Tashrif buyuruvchilar uchun Excel eksport."""
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    wb = _build_category_excel(user_db.get_visitors(), "Tashrif buyuruvchilar", start_date, end_date)
+    buf = BytesIO(); wb.save(buf)
+    sfx = f"{start_date or 'barchasi'}_{end_date or ''}"
+    return Response(buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=tashrif_{sfx}.xlsx"})
+
+
+@router.get("/api/category/consultants/export")
+async def export_consultants_excel(request: Request, start_date: str = None, end_date: str = None):
+    """Konsultantlar uchun Excel eksport."""
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    wb = _build_category_excel(user_db.get_consultants(), "Konsultantlar", start_date, end_date)
+    buf = BytesIO(); wb.save(buf)
+    sfx = f"{start_date or 'barchasi'}_{end_date or ''}"
+    return Response(buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=konsultantlar_{sfx}.xlsx"})
+
+
+@router.get("/api/category/project-members/export")
+async def export_project_members_excel(request: Request, start_date: str = None, end_date: str = None):
+    """Loyiha ishtirokchilari uchun Excel eksport."""
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    wb = _build_category_excel(user_db.get_project_members(), "Loyiha ishtirokchilari", start_date, end_date)
+    buf = BytesIO(); wb.save(buf)
+    sfx = f"{start_date or 'barchasi'}_{end_date or ''}"
+    return Response(buf.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=loyiha_{sfx}.xlsx"})
+
+
+
 @router.get("/admin/audit")
 async def admin_audit_page(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/admin/audit", status_code=303)
     entries = audit_log.get_recent(300)
     return templates.TemplateResponse(request=request, name="admin_audit.html", context=
@@ -2360,7 +2691,7 @@ async def admin_audit_page(request: Request):
 @router.get("/api/settings/schedule")
 async def api_get_schedule(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     return JSONResponse(load_schedule())
 
@@ -2368,7 +2699,7 @@ async def api_get_schedule(request: Request):
 @router.put("/api/settings/schedule")
 async def api_put_schedule(request: Request, body: dict = Body(...)):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     ws = (body.get("work_start") or "09:00").strip()
     we = (body.get("work_end") or "18:00").strip()
@@ -2379,7 +2710,7 @@ async def api_put_schedule(request: Request, body: dict = Body(...)):
 @router.get("/api/settings/holidays")
 async def api_get_holidays(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     return JSONResponse(holidays_db.list_all())
 
@@ -2387,7 +2718,7 @@ async def api_get_holidays(request: Request):
 @router.post("/api/settings/holidays")
 async def api_post_holiday(request: Request, body: dict = Body(...)):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     d = (body.get("date") or "").strip()
     if not d:
@@ -2400,7 +2731,7 @@ async def api_post_holiday(request: Request, body: dict = Body(...)):
 @router.delete("/api/settings/holidays/{date_str}")
 async def api_delete_holiday(request: Request, date_str: str):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     ok = holidays_db.remove(date_str)
     if not ok:
@@ -2411,7 +2742,7 @@ async def api_delete_holiday(request: Request, date_str: str):
 @router.get("/api/audit-log")
 async def api_audit_log(request: Request, limit: int = 200):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     return JSONResponse(audit_log.get_recent(min(limit, 500)))
 
@@ -2419,7 +2750,7 @@ async def api_audit_log(request: Request, limit: int = 200):
 @router.post("/api/telegram/test")
 async def api_telegram_test(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not (settings.TELEGRAM_BOT_TOKEN or "").strip():
         return JSONResponse(
@@ -2444,7 +2775,7 @@ async def api_telegram_test(request: Request):
 @router.post("/api/telegram/send-summary")
 async def api_telegram_send_summary(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not (settings.TELEGRAM_BOT_TOKEN or "").strip() or not get_effective_chat_id():
         return JSONResponse(
@@ -2464,7 +2795,7 @@ async def api_telegram_send_summary(request: Request):
 async def api_telegram_discover_chats(request: Request):
     """getUpdates orqali chat_id ro'yxati (avval botga xabar yuboring)."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not (settings.TELEGRAM_BOT_TOKEN or "").strip():
         return JSONResponse({"ok": False, "error": "TELEGRAM_BOT_TOKEN yo'q"}, status_code=400)
@@ -2476,7 +2807,7 @@ async def api_telegram_discover_chats(request: Request):
 async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
     """Chat ID ni data/telegram_chat_id.txt ga saqlash (.env dan keyin ustunlik)."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     cid = str(body.get("chat_id", "")).strip()
     if not cid:
@@ -2489,7 +2820,7 @@ async def api_save_telegram_chat(request: Request, body: dict = Body(...)):
 async def api_get_managers(request: Request):
     """Qo'shimcha admin chat ID lar ro'yxatini qaytaradi."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     return JSONResponse({"ok": True, "managers": get_extra_chat_ids()})
 
@@ -2498,7 +2829,7 @@ async def api_get_managers(request: Request):
 async def api_add_manager(request: Request, body: dict = Body(...)):
     """Yangi admin chat ID qo'shadi. Body: {chat_id, label}"""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     cid = str(body.get("chat_id", "")).strip()
     label = str(body.get("label", "")).strip()
@@ -2517,7 +2848,7 @@ async def api_add_manager(request: Request, body: dict = Body(...)):
 async def api_remove_manager(request: Request, chat_id: str):
     """Admin chat ID ni o'chiradi."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     entries = get_extra_chat_ids()
     new_entries = [e for e in entries if str(e.get("chat_id")) != chat_id]
@@ -2531,7 +2862,7 @@ async def api_remove_manager(request: Request, chat_id: str):
 async def api_telegram_send_summary_chart(request: Request):
     """Grafik bilan kunlik xulosani barcha chatlarga yuboradi."""
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     if not is_telegram_ready():
         return JSONResponse(
@@ -2548,7 +2879,7 @@ async def api_telegram_send_summary_chart(request: Request):
 @router.get("/admin/departments")
 async def admin_departments_page(request: Request):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_admin_or_superadmin(user):
         return RedirectResponse(url="/login?next=/admin/departments", status_code=303)
     
     departments = departments_db.get_all()
@@ -2572,7 +2903,7 @@ async def admin_departments_page(request: Request):
 @router.post("/api/departments")
 async def api_create_department(request: Request, body: dict = Body(...)):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     
     name = body.get("name", "").strip()
@@ -2585,7 +2916,7 @@ async def api_create_department(request: Request, body: dict = Body(...)):
 @router.put("/api/departments/{dept_id}")
 async def api_update_department(request: Request, dept_id: str, body: dict = Body(...)):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     
     name = body.get("name", "").strip()
@@ -2600,7 +2931,7 @@ async def api_update_department(request: Request, dept_id: str, body: dict = Bod
 @router.delete("/api/departments/{dept_id}")
 async def api_delete_department(request: Request, dept_id: str):
     user = get_current_admin(request)
-    if not user or user.get("role") != "admin":
+    if not user or not require_superadmin(user):
         return JSONResponse({"error": "Forbidden"}, status_code=403)
     
     success = departments_db.delete(dept_id)
@@ -2608,3 +2939,89 @@ async def api_delete_department(request: Request, dept_id: str):
         return JSONResponse({"success": True})
     return JSONResponse({"error": "Not found"}, status_code=404)
 
+
+# ========== ADMIN USER MANAGEMENT (Superadmin only) ==========
+
+@router.get("/admin/manage-admins")
+async def manage_admins_page(request: Request):
+    user = get_current_admin(request)
+    if not user:
+        return RedirectResponse(url="/login", status_code=303)
+    if not require_superadmin(user):
+        return RedirectResponse(url="/admin", status_code=303)
+    all_admins = admin_db.list_all_admins()
+    return templates.TemplateResponse(request=request, name="admin_users.html", context={
+        "request": request,
+        "user": user,
+        "admins": all_admins,
+    })
+
+
+@router.post("/api/admin-users")
+async def api_create_admin_user(request: Request, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or not require_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+    role = (body.get("role") or "admin").strip()
+    if not username or not password:
+        return JSONResponse({"error": "Username va password majburiy"}, status_code=400)
+    if role not in ("admin", "superadmin"):
+        return JSONResponse({"error": "Rol: admin yoki superadmin bo'lishi kerak"}, status_code=400)
+    success, message = admin_db.create_admin(username, password, role=role)
+    if success:
+        audit_log.append_entry("admin_created", user.get("username", ""), {"new_user": username, "role": role})
+        return JSONResponse({"success": True, "message": message})
+    return JSONResponse({"error": message}, status_code=409)
+
+
+@router.delete("/api/admin-users/{username}")
+async def api_delete_admin_user(request: Request, username: str):
+    user = get_current_admin(request)
+    if not user or not require_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if username == user.get("username"):
+        return JSONResponse({"error": "O'zingizni o'chira olmaysiz"}, status_code=400)
+    success, message = admin_db.delete_admin(username)
+    if success:
+        audit_log.append_entry("admin_deleted", user.get("username", ""), {"deleted_user": username})
+        return JSONResponse({"success": True, "message": message})
+    return JSONResponse({"error": message}, status_code=404)
+
+
+@router.put("/api/admin-users/{username}/role")
+async def api_change_admin_role(request: Request, username: str, body: dict = Body(...)):
+    user = get_current_admin(request)
+    if not user or not require_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    if username == user.get("username"):
+        return JSONResponse({"error": "O'z rolingizni o'zgartira olmaysiz"}, status_code=400)
+    new_role = (body.get("role") or "").strip()
+    success, message = admin_db.change_admin_role(username, new_role)
+    if success:
+        audit_log.append_entry("admin_role_changed", user.get("username", ""), {"target": username, "new_role": new_role})
+        return JSONResponse({"success": True, "message": message})
+    return JSONResponse({"error": message}, status_code=400)
+
+
+@router.post("/api/admin-users/change-password")
+async def api_change_own_password(request: Request, body: dict = Body(...)):
+    """O'z parolini o'zgartirish (admin va superadmin uchun)."""
+    user = get_current_admin(request)
+    if not user or not require_admin_or_superadmin(user):
+        return JSONResponse({"error": "Forbidden"}, status_code=403)
+    current_password = (body.get("current_password") or "").strip()
+    new_password = (body.get("new_password") or "").strip()
+    if not current_password or not new_password:
+        return JSONResponse({"error": "Eski va yangi parol majburiy"}, status_code=400)
+    if len(new_password) < 6:
+        return JSONResponse({"error": "Yangi parol kamida 6 ta belgi bo'lishi kerak"}, status_code=400)
+    verified = admin_db.verify_admin(user["username"], current_password)
+    if not verified:
+        return JSONResponse({"error": "Joriy parol noto'g'ri"}, status_code=401)
+    success, message = admin_db.change_admin_password(user["username"], new_password)
+    if success:
+        audit_log.append_entry("password_changed", user.get("username", ""), {"action": "own password change"})
+        return JSONResponse({"success": True, "message": "Parol muvaffaqiyatli o'zgartirildi"})
+    return JSONResponse({"error": message}, status_code=500)

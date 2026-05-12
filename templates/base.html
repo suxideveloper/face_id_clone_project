@@ -78,28 +78,33 @@
 
         /* ========== NAVBAR ========== */
         .navbar {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(12px);
+            background: rgba(255, 255, 255, 0.92);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
             padding: 0;
-            position: relative;
-            /* Stable in-flow positioning */
-            top: 0;
+            position: sticky;
+            top: 12px;
             left: 0;
-            transform: none;
             z-index: 1000;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01);
-            border: 1px solid #e2e8f0;
-            border-radius: 20px;
+            box-shadow:
+                0 4px 6px -1px rgba(0,0,0,0.04),
+                0 12px 32px -8px rgba(102,126,234,0.12),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 22px;
             max-width: 1536px;
-            margin: 20px auto 10px auto;
-            /* Centered with vertical spacing */
-            width: calc(100% - 64px);
+            margin: 12px auto 16px auto;
+            width: calc(100% - 48px);
+            transition: box-shadow 0.3s ease, background 0.3s ease;
         }
 
         html[data-theme="dark"] .navbar {
-            background: rgba(60, 83, 114, 0.88);
-            border-color: var(--border-color);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 8px 10px -6px rgba(0, 0, 0, 0.15);
+            background: rgba(15, 28, 50, 0.88);
+            border-color: rgba(99, 120, 160, 0.3);
+            box-shadow:
+                0 4px 6px -1px rgba(0,0,0,0.4),
+                0 12px 32px -8px rgba(0,0,0,0.5),
+                inset 0 1px 0 rgba(255,255,255,0.04);
         }
 
         .nav-container {
@@ -108,58 +113,226 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            height: 72px;
-            padding: 0 32px;
+            height: 68px;
+            padding: 0 20px 0 16px;
+            gap: 12px;
         }
 
-        .nav-brand>img {
-            width: 260px;
+        /* ---- Brand ---- */
+        .nav-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            flex-shrink: 0;
+            padding: 6px 12px 6px 8px;
+            border-radius: 14px;
+            transition: background 0.2s ease;
+        }
+        .nav-brand:hover { background: rgba(102,126,234,0.07); }
+        .nav-brand > img {
+            width: 200px;
             height: auto;
             display: block;
         }
 
+        /* ---- Nav Links ---- */
         .nav-links {
             list-style: none;
             display: flex;
-            gap: 8px;
+            gap: 2px;
             margin: 0;
             padding: 0;
             align-items: center;
+            flex: 1;
+            justify-content: center;
         }
 
         .nav-links li a {
-            color: var(--text-dark);
+            color: var(--text-medium);
             text-decoration: none;
-            font-weight: 600;
-            font-size: 0.9rem;
-            padding: 10px 20px;
+            font-weight: 500;
+            font-size: 0.85rem;
+            padding: 8px 14px;
             border-radius: 12px;
-            transition: all 0.2s ease;
+            transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
             display: inline-block;
-            text-shadow: none;
+            white-space: nowrap;
+            position: relative;
+            letter-spacing: 0.01em;
         }
 
         .nav-links li a:hover {
-            color: var(--accent-blue);
-            background: rgba(59, 130, 246, 0.10);
+            color: #667eea;
+            background: rgba(102, 126, 234, 0.10);
         }
 
-        .nav-links li a.active {
-            color: var(--accent-blue);
-            background: rgba(59, 130, 246, 0.18);
+        .nav-links > li > a.active {
+            color: #fff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-weight: 600;
+            box-shadow: 0 4px 14px rgba(102,126,234,0.4);
+        }
+        /* Dropdown ichidagi linklar hech qachon gradient background olmasin */
+        .nav-dropdown-menu li a,
+        .nav-dropdown-menu li a.active {
+            background: transparent !important;
+            color: var(--text-medium) !important;
+            box-shadow: none !important;
+            font-weight: 500 !important;
+        }
+        .nav-dropdown-menu li a:hover {
+            background: rgba(102,126,234,0.09) !important;
+            color: #667eea !important;
+            padding-left: 20px !important;
         }
 
-        .nav-links .logout-link {
-            color: #dc2626 !important;
-            margin-left: 8px;
-            border: 1px solid rgba(220, 38, 38, 0.2);
-            background: rgba(254, 226, 226, 0.3);
+        html[data-theme="dark"] .nav-links li a {
+            color: var(--text-medium);
+        }
+        html[data-theme="dark"] .nav-links li a:hover {
+            color: #a5b4fc;
+            background: rgba(102,126,234,0.15);
         }
 
-        .nav-links .logout-link:hover {
-            background: #dc2626 !important;
-            color: white !important;
-            border-color: transparent;
+        /* ---- Dropdown menu ---- */
+        .nav-dropdown {
+            position: relative;
+        }
+        .nav-dropdown-trigger {
+            display: inline-flex !important;
+            align-items: center;
+            gap: 2px;
+            cursor: pointer;
+            user-select: none;
+            border: 1.5px solid rgba(102, 126, 234, 0.55) !important;
+            color: #667eea !important;
+            border-radius: 12px !important;
+            padding: 7px 13px !important;
+            font-weight: 500 !important;
+            transition: all 0.22s ease !important;
+            background: transparent !important;
+        }
+        .nav-dropdown-trigger:hover,
+        .nav-dropdown.open .nav-dropdown-trigger {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border-color: transparent !important;
+            color: #fff !important;
+            box-shadow: 0 4px 14px rgba(102,126,234,0.4) !important;
+        }
+        .nav-dropdown-trigger svg {
+            transition: transform 0.2s ease;
+            flex-shrink: 0;
+            opacity: 0.7;
+        }
+        .nav-dropdown:hover .nav-dropdown-trigger svg,
+        .nav-dropdown.open .nav-dropdown-trigger svg {
+            transform: rotate(180deg);
+            opacity: 1;
+        }
+        /* Dark mode border */
+        html[data-theme="dark"] .nav-dropdown-trigger {
+            border-color: rgba(129, 140, 248, 0.45) !important;
+            color: #a5b4fc !important;
+        }
+        html[data-theme="dark"] .nav-dropdown-trigger:hover,
+        html[data-theme="dark"] .nav-dropdown.open .nav-dropdown-trigger {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border-color: transparent !important;
+            color: #fff !important;
+        }
+        .nav-dropdown-menu {
+            position: absolute;
+            top: calc(100% + 10px);
+            left: 50%;
+            transform: translateX(-50%) translateY(-4px);
+            background: var(--bg-white);
+            border: 1px solid rgba(102,126,234,0.15);
+            border-radius: 16px;
+            box-shadow: 0 12px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(102,126,234,0.07);
+            min-width: 220px;
+            padding: 8px;
+            list-style: none;
+            margin: 0;
+            z-index: 2000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.18s ease, transform 0.18s ease;
+        }
+        /* small arrow on top of dropdown */
+        .nav-dropdown-menu::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 12px;
+            height: 12px;
+            background: var(--bg-white);
+            border-left: 1px solid rgba(102,126,234,0.15);
+            border-top: 1px solid rgba(102,126,234,0.15);
+            rotate: 45deg;
+            border-radius: 2px 0 0 0;
+        }
+        .nav-dropdown:hover .nav-dropdown-menu,
+        .nav-dropdown.open .nav-dropdown-menu {
+            opacity: 1;
+            pointer-events: all;
+            transform: translateX(-50%) translateY(0);
+        }
+        .nav-dropdown-menu li {
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .nav-dropdown-menu li + li {
+            margin-top: 2px;
+        }
+        .nav-dropdown-menu li a {
+            display: block !important;
+            padding: 10px 16px !important;
+            border-radius: 10px !important;
+            font-size: 0.85rem !important;
+            font-weight: 500 !important;
+            white-space: nowrap;
+            color: var(--text-medium) !important;
+            letter-spacing: 0.01em;
+            transition: all 0.16s ease !important;
+        }
+        .nav-dropdown-menu li a:hover {
+            background: rgba(102,126,234,0.09) !important;
+            color: #667eea !important;
+            padding-left: 20px !important;
+        }
+        html[data-theme="dark"] .nav-dropdown-menu {
+            background: rgba(13, 24, 45, 0.98);
+            border-color: rgba(99,120,160,0.25);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.5);
+        }
+        html[data-theme="dark"] .nav-dropdown-menu::before {
+            background: rgba(13, 24, 45, 0.98);
+            border-color: rgba(99,120,160,0.25);
+        }
+        html[data-theme="dark"] .nav-dropdown-menu li a {
+            color: var(--text-medium) !important;
+        }
+        html[data-theme="dark"] .nav-dropdown-menu li a:hover {
+            color: #a5b4fc !important;
+            background: rgba(102,126,234,0.15) !important;
+        }
+        .nav-dropdown-trigger.active {
+            color: #fff !important;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            border-color: transparent !important;
+            font-weight: 600 !important;
+            box-shadow: 0 4px 14px rgba(102,126,234,0.4) !important;
+        }
+
+
+        .nav-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
         }
 
         /* Theme toggle */
@@ -167,34 +340,65 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            height: 40px;
-            padding: 0 12px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
+            gap: 6px;
+            height: 38px;
+            padding: 0 14px;
+            border-radius: 50px;
+            border: 1.5px solid var(--border-color);
             background: var(--bg-white);
-            color: var(--text-dark);
+            color: var(--text-medium);
             cursor: pointer;
-            font-weight: 700;
-            font-size: 0.9rem;
-            transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+            font-weight: 600;
+            font-size: 0.82rem;
+            transition: all 0.22s ease;
+            letter-spacing: 0.02em;
         }
-
         .theme-toggle-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: rgba(102,126,234,0.06);
             transform: translateY(-1px);
-            background: var(--bg-primary);
+            box-shadow: 0 4px 12px rgba(102,126,234,0.18);
+        }
+        .theme-toggle-icon {
+            font-size: 16px;
+            line-height: 1;
         }
 
-        .theme-toggle-icon {
-            width: 22px;
-            height: 22px;
+        /* Logout button */
+        .logout-btn {
             display: inline-flex;
             align-items: center;
-            justify-content: center;
-            border-radius: 10px;
-            background: rgba(102, 126, 234, 0.15);
-            color: var(--primary);
-            font-weight: 900;
+            gap: 6px;
+            height: 38px;
+            padding: 0 16px;
+            border-radius: 50px;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: #fff !important;
+            font-weight: 600;
+            font-size: 0.82rem;
+            text-decoration: none;
+            border: none;
+            cursor: pointer;
+            transition: all 0.22s ease;
+            box-shadow: 0 2px 8px rgba(220,38,38,0.3);
+            letter-spacing: 0.02em;
+            white-space: nowrap;
+        }
+        .logout-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(220,38,38,0.45);
+            background: linear-gradient(135deg, #f87171, #ef4444);
+        }
+        .logout-btn:active { transform: translateY(0); }
+
+        /* Nav divider */
+        .nav-divider {
+            width: 1px;
+            height: 24px;
+            background: var(--border-color);
+            margin: 0 4px;
+            opacity: 0.6;
         }
 
         /* ========== CONTAINER ========== */
@@ -796,29 +1000,49 @@
     </script>
 
     {% block navbar %}
-    <nav class="navbar">
+    <nav class="navbar" id="mainNavbar">
         <div class="nav-container">
 
+            <!-- Brand / Logo -->
             <a href="/admin" class="nav-brand">
-                <img src="/static/images/airi-logo_uz.png" alt="Logo">
+                <img src="/static/images/airi-logo_uz.png" alt="AIRI Logo">
             </a>
-            <ul class="nav-links">
-                <li><a href="/admin">Boshqaruv paneli</a></li>
-                <li><a href="/users">Xodimlar</a></li>
-                <li><a href="/attendance">Davomat</a></li>
-                <li><a href="/admin/doctorants-report">Doktorantlar</a></li>
-                <li><a href="/admin/departments">Bo'limlar</a></li>
-                <li><a href="/register">Ro'yxatdan o'tkazish</a></li>
-                <li><a href="/admin/audit">Audit</a></li>
-                <li>
-                    <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark mode">
-                        <span class="theme-toggle-icon" id="themeToggleIcon">☾</span>
-                        <span id="themeToggleText">Dark</span>
-                    </button>
-                </li>
 
-                <li><a href="/logout" class="logout-link">Chiqish</a></li>
+            <!-- Navigation Links -->
+            <ul class="nav-links" id="navLinks">
+                <li><a href="/admin" id="nav-dashboard">Boshqaruv</a></li>
+                <li><a href="/users" id="nav-users">Xodimlar</a></li>
+                <li><a href="/attendance" id="nav-attendance">Davomat</a></li>
+                <li><a href="/admin/doctorants-report" id="nav-doctorants">Doktorantlar</a></li>
+                <li class="nav-dropdown">
+                    <a href="#" id="nav-others" class="nav-dropdown-trigger">
+                        Boshqalar
+                        <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:3px;vertical-align:middle;opacity:0.7;"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    </a>
+                    <ul class="nav-dropdown-menu">
+                        <li><a href="/admin/visitors" id="nav-visitors">Tashrif buyuruvchilar</a></li>
+                        <li><a href="/admin/consultants" id="nav-consultants">Konsultantlar</a></li>
+                        <li><a href="/admin/project-members" id="nav-project">Loyiha ishtirokchilari</a></li>
+                    </ul>
+                </li>
+                {% if user and user.role == "superadmin" %}
+                <li><a href="/admin/departments" id="nav-departments">Bo'limlar</a></li>
+                <li><a href="/register" id="nav-register">Ro'yxatdan o'tkazish</a></li>
+                <li><a href="/admin/audit" id="nav-audit">Audit</a></li>
+                <li><a href="/admin/manage-admins" id="nav-admins">Adminlar</a></li>
+                {% endif %}
             </ul>
+
+            <!-- Right Controls -->
+            <div class="nav-controls">
+                <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle dark mode">
+                    <span class="theme-toggle-icon" id="themeToggleIcon">☾</span>
+                    <span id="themeToggleText">Dark</span>
+                </button>
+                <div class="nav-divider"></div>
+                <a href="/logout" class="logout-btn" id="nav-logout">Chiqish</a>
+            </div>
+
         </div>
     </nav>
     {% endblock %}
@@ -838,6 +1062,22 @@
     </div>
 
     {% block scripts %}{% endblock %}
+
+    <script>
+        /* ---- Auto Active Nav Link ---- */
+        (function () {
+            const path = window.location.pathname;
+            const links = document.querySelectorAll('#navLinks > li > a');
+            let best = null, bestLen = 0;
+            links.forEach(function(a) {
+                const href = a.getAttribute('href');
+                if (href && href !== '#' && path.startsWith(href) && href.length > bestLen) {
+                    best = a; bestLen = href.length;
+                }
+            });
+            if (best) best.classList.add('active');
+        })();
+    </script>
 
     <script>
         (function () {
@@ -868,6 +1108,26 @@
                 try { localStorage.setItem('theme', next); } catch (e) { }
                 syncUI(next);
             });
+        })();
+    </script>
+
+    <script>
+        /* Dropdown: click-outside close + toggle */
+        (function () {
+            document.addEventListener('click', function (e) {
+                var dropdown = document.querySelector('.nav-dropdown');
+                if (dropdown && !dropdown.contains(e.target)) {
+                    dropdown.classList.remove('open');
+                }
+            });
+            var trigger = document.getElementById('nav-others');
+            if (trigger) {
+                trigger.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    var dropdown = trigger.closest('.nav-dropdown');
+                    if (dropdown) dropdown.classList.toggle('open');
+                });
+            }
         })();
     </script>
 </body>

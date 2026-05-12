@@ -1,20 +1,20 @@
 """
-Yangi superadmin yaratish skripti.
+Yangi admin (faqat ko'rish huquqi) yaratish skripti.
 
-superadmin roli imkoniyatlari:
-  ✅ Barcha adminlar imkoniyatlari
-  ✅ Xodim qo'shish, tahrirlash, o'chirish
-  ✅ Sozlamalar, bo'limlar, Telegram boshqaruvi
-  ✅ Boshqa adminlarni yaratish, o'chirish, rol o'zgartirish
+admin roli imkoniyatlari:
+  ✅ Dashboard, hisobotlar, davomat, xodimlar ro'yxatini ko'rish
   ✅ O'z parolini o'zgartirish
+  ❌ Xodim qo'shish, tahrirlash, o'chirish
+  ❌ Sozlamalar, bo'limlar, Telegram boshqaruvi
+  ❌ Boshqa adminlarni boshqarish
 
-Faqat ko'rish uchun admin: python create_admin_user.py
+To'liq ruxsat uchun: python create_superuser.py
 """
 import getpass
 from app.services import admin_db
 
-def create_superuser():
-    print("=== Yangi Superadmin Yaratish (to'liq ruxsat) ===")
+def create_admin_user():
+    print("=== Yangi Admin Yaratish (faqat ko'rish) ===")
     username = input("Username: ").strip()
     if not username:
         print("Xato: Username bo'sh bo'lishi mumkin emas.")
@@ -33,12 +33,12 @@ def create_superuser():
         print("Xato: Parol kamida 6 ta belgi bo'lishi kerak.")
         return
 
-    success, message = admin_db.create_admin(username, password, role="superadmin")
+    success, message = admin_db.create_admin(username, password, role="admin")
     if success:
         print(f"✅ {message}")
-        print(f"   Rol: superadmin (to'liq ruxsat)")
+        print(f"   Rol: admin (faqat ko'rish huquqi)")
     else:
         print(f"❌ {message}")
 
 if __name__ == "__main__":
-    create_superuser()
+    create_admin_user()

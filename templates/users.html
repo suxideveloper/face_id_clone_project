@@ -4,9 +4,11 @@
 <div class="page-header">
     <h1>👥 Xodimlar ro'yxati</h1>
     <div class="header-actions">
+        {% if current_user and current_user.role == "superadmin" %}
         <button id="bulkDeleteBtn" class="btn btn-danger" disabled onclick="showBulkDeleteModal()">
             Delete Selected (0)
         </button>
+        {% endif %}
     </div>
 </div>
 
@@ -75,9 +77,11 @@
                 </td>
                 <td>
                     <div style="display: flex; gap: 8px;">
-                        <a href="/users/{{ user.id }}" class="btn-action btn-view">View</a>
-                        <a href="/users/{{ user.id }}/edit" class="btn-action btn-edit">Edit</a>
-                        <button onclick="showDeleteModal('{{ user.id }}')" class="btn-action btn-delete">Delete</button>
+                        <a href="/users/{{ user.id }}" class="btn-action btn-view">Ko'rish</a>
+                        {% if current_user and current_user.role == "superadmin" %}
+                        <a href="/users/{{ user.id }}/edit" class="btn-action btn-edit">Tahrirlash</a>
+                        <button onclick="showDeleteModal('{{ user.id }}')" class="btn-action btn-delete">O'chirish</button>
+                        {% endif %}
                     </div>
                 </td>
             </tr>

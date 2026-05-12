@@ -112,6 +112,19 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="person_type">Kategoriya *</label>
+                    <select id="person_type" name="person_type" disabled onchange="handlePersonTypeChange(this.value)">
+                        <option value="staff">👤 Asosiy xodim</option>
+                        <option value="doctorant">🎓 Doktorant (20 soat/hafta)</option>
+                        <option value="visitor">👥 Tashrif buyuruvchi</option>
+                        <option value="consultant">🤝 Konsultant</option>
+                        <option value="project_member">📋 Loyiha ishtirokchisi</option>
+                    </select>
+                    <small>Kategoriyani tanlang — qo'shimcha maydonlar avtomatik ko'rinadi</small>
+                </div>
+
+                <!-- STAFF: Stavka -->
+                <div class="form-group" id="field-staff-rate">
                     <label for="staff_rate">Shtat birligi</label>
                     <select id="staff_rate" name="staff_rate" disabled>
                         <option value="0">0 (Faqat o'qiydi)</option>
@@ -126,14 +139,36 @@
                     </select>
                 </div>
 
-                <div class="form-group">
-                    <label class="checkbox-label" for="is_doctorant" style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="checkbox" id="is_doctorant" name="is_doctorant" value="true" disabled
-                            style="width: auto; margin-right: 8px;">
-                        🎓 Doctorant talaba
-                    </label>
-                    <small style="color: var(--text-light);">Doctorant sifatida belgilansa, hisobotlarda alohida ko'rsatiladi</small>
+                <!-- DOCTORANT: Kurs va ilmiy rahbar -->
+                <div class="form-group extra-field" id="field-doctorant" style="display:none;">
+                    <label for="notes">Kurs va ilmiy rahbar</label>
+                    <input type="text" id="notes" name="notes" placeholder="Masalan: 2-kurs, Prof. Fozilov" disabled>
+                    <small style="color:#7c3aed;">🎓 Haftalik 20 soatlik nagruzka avtomatik hisoblanadi</small>
                 </div>
+
+                <!-- VISITOR: Kelish maqsadi -->
+                <div class="form-group extra-field" id="field-visitor" style="display:none;">
+                    <label for="notes-visitor">Kelish maqsadi</label>
+                    <input type="text" id="notes-visitor" placeholder="Masalan: Hamkorlik muzokarasi" disabled
+                        oninput="document.getElementById('notes') && (document.getElementById('notes').value = this.value)">
+                </div>
+
+                <!-- CONSULTANT: Shartnoma va soha -->
+                <div class="form-group extra-field" id="field-consultant" style="display:none;">
+                    <label for="notes-consultant">Shartnoma / Soha</label>
+                    <input type="text" id="notes-consultant" placeholder="Masalan: IT-maslahat, Shartnoma №123" disabled
+                        oninput="document.getElementById('notes') && (document.getElementById('notes').value = this.value)">
+                </div>
+
+                <!-- PROJECT MEMBER: Loyiha nomi -->
+                <div class="form-group extra-field" id="field-project" style="display:none;">
+                    <label for="notes-project">Loyiha nomi</label>
+                    <input type="text" id="notes-project" placeholder="Masalan: AIRI FaceID loyihasi" disabled
+                        oninput="document.getElementById('notes') && (document.getElementById('notes').value = this.value)">
+                </div>
+
+                <!-- hidden notes field (always submitted) -->
+                <input type="hidden" id="notes" name="notes" value="">
 
                 <button type="submit" id="submitBtn" class="btn btn-primary" style="width: 100%;" disabled>
                     Ro'yxatdan o'tish
@@ -633,10 +668,67 @@
         document.getElementById('department').disabled = false;
         document.getElementById('position').disabled = false;
         document.getElementById('staff_rate').disabled = false;
-        document.getElementById('is_doctorant').disabled = false;
+        document.getElementById('person_type').disabled = false;
         document.getElementById('submitBtn').disabled = false;
 
+        // Enable extra fields based on current selection
+        handlePersonTypeChange(document.getElementById('person_type').value);
+
         document.getElementById('full_name').focus();
+    }
+
+    function handlePersonTypeChange(type) {
+        // Show/hide staff rate
+        const staffRateField = document.getElementById('field-staff-rate');
+        const staffRate = document.getElementById('staff_rate');
+        if (staffRateField) {
+            staffRateField.style.display = (type === 'staff') ? '' : 'none';
+        }
+
+        // Hide all extra fields first
+        ['field-doctorant','field-visitor','field-consultant','field-project'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.style.display = 'none';
+        });
+        // Disable all extra inputs
+        ['notes-visitor','notes-consultant','notes-project'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) { el.disabled = true; el.value = ''; }
+        });
+        const notesHidden = document.getElementById('notes');
+
+        // Show relevant field
+        const fieldMap = {
+            doctorant: 'field-doctorant',
+            visitor:   'field-visitor',
+            consultant:'field-consultant',
+            project_member:'field-project',
+        };
+        const inputMap = {
+            visitor:   'notes-visitor',
+            consultant:'notes-consultant',
+            project_member:'notes-project',
+        };
+        const notesField = document.getElementById('field-doctorant')?.querySelector('input');
+
+        if (fieldMap[type]) {
+            const el = document.getElementById(fieldMap[type]);
+            if (el) el.style.display = '';
+        }
+        if (inputMap[type]) {
+            const el = document.getElementById(inputMap[type]);
+            if (el) el.disabled = false;
+        }
+        if (type === 'doctorant' && notesField) {
+            notesField.disabled = false;
+        }
+        // Sync hidden notes field on input
+        ['notes-visitor','notes-consultant','notes-project'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('input', function() {
+                if (notesHidden) notesHidden.value = this.value;
+            });
+        });
     }
 
     document.getElementById('registerForm').addEventListener('submit', async (e) => {
@@ -667,7 +759,9 @@
             if (result.success) {
                 statusDiv.textContent = "✅ " + result.message;
                 statusDiv.className = "status-message success";
-                setTimeout(() => window.location.href = '/', 2000);
+                // Kategoriyaga qarab to'g'ri sahifaga yo'naltirish
+                const redirectUrl = result.redirect_url || '/';
+                setTimeout(() => window.location.href = redirectUrl, 1800);
             } else {
                 statusDiv.textContent = "❌ " + result.message;
                 statusDiv.className = "status-message error";
