@@ -2252,7 +2252,8 @@ def _calculate_doctorant_stats(period: str):
     if period == "this_week":
         # Start of current week (Monday)
         start_date = today - timedelta(days=today.weekday())
-        end_date = today
+        # End of current week (Sunday)
+        end_date = start_date + timedelta(days=6)
     elif period == "last_week":
         start_date = today - timedelta(days=today.weekday() + 7)
         end_date = start_date + timedelta(days=6)
@@ -2261,8 +2262,10 @@ def _calculate_doctorant_stats(period: str):
         end_date = first_day_this_month - timedelta(days=1)
         start_date = end_date.replace(day=1)
     else: # "this_month"
+        import calendar
         start_date = today.replace(day=1)
-        end_date = today
+        _, last_day = calendar.monthrange(today.year, today.month)
+        end_date = today.replace(day=last_day)
 
     # Standard working hours per day for doctorants is 4 hours (20 hours per week)
     STANDARD_HOURS_PER_DAY = 4.0
