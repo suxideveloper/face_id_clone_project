@@ -213,8 +213,10 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None, reply_markup=None
 
 bot_admin_states = {}
 
-# Pagination cache: {chat_id: {"date": str, "present": [...], "absent": [...], "page_present": int, "page_absent": int}}
+# Pagination cache (staff): {chat_id: {"date": str, "present": [...], "absent": [...]}}
 _report_pages_cache: dict = {}
+# Pagination cache (doctorantlar): {chat_id: {"date": str, "present": [...], "absent": [...], "total": int}}
+_doc_report_pages_cache: dict = {}
 PAGE_SIZE = 15
 
 
@@ -285,15 +287,30 @@ def process_telegram_updates_long_poll() -> None:
             cb_cid = str(cb_from.get("id", ""))
             cb_id = cb.get("id", "")
 
-            # ── Pagination callback ──
+            # ── Pagination callback (staff) ──
             if cb_data.startswith("report_page:"):
-                # Format: report_page:<section>:<page>  section = present | absent
                 try:
                     _, section, page_str = cb_data.split(":")
                     page = int(page_str)
+                    cb_msg = cb.get("message") or {}
+                    cb_message_id = cb_msg.get("message_id")
                     _answer_callback_query(cb_id)
-                    _send_report_page(cb_cid, section, page)
-                except Exception:
+                    _send_report_page(cb_cid, section, page, message_id=cb_message_id)
+                except Exception as ex:
+                    print(f"Pagination callback xato: {ex}")
+                    _answer_callback_query(cb_id, "⚠️ Xato")
+
+            # ── Pagination callback (doctorantlar) ──
+            elif cb_data.startswith("doc_page:"):
+                try:
+                    _, section, page_str = cb_data.split(":")
+                    page = int(page_str)
+                    cb_msg = cb.get("message") or {}
+                    cb_message_id = cb_msg.get("message_id")
+                    _answer_callback_query(cb_id)
+                    _send_doc_report_page(cb_cid, section, page, message_id=cb_message_id)
+                except Exception as ex:
+                    print(f"Doc pagination callback xato: {ex}")
                     _answer_callback_query(cb_id, "⚠️ Xato")
 
             # Faqat asosiy admin o'chira oladi
@@ -375,10 +392,8 @@ def process_telegram_updates_long_poll() -> None:
                     pass  # Grafik bo'lmasa ham hisobot ketadi
                 try:
                     _send_daily_report_paginated(cid_str)
-                    # Doctorant hisobotini faqat main adminga yuborish
-                    _, doc_text = build_daily_summary_text()
-                    if doc_text:
-                        send_telegram_to_chat(cid, doc_text, parse_mode="HTML")
+                    # Doctorant hisobotini faqat main adminga paginated yuborish
+                    _send_doctorant_report_paginated(cid_str)
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_main_admin_keyboard())
                 continue
@@ -514,8 +529,32 @@ def _load_report_cache(chat_id: str) -> dict:
     return cache
 
 
-def _send_report_page(chat_id: str, section: str, page: int) -> None:
-    """Kelganlar yoki Kelmaganlar ro'yxatining berilgan sahifasini yuboradi."""
+def _edit_message_text(chat_id: str, message_id: int, text: str, reply_markup=None) -> dict:
+    """Mavjud messageni editMessageText API orqali o'zgartiradi."""
+    token = (settings.TELEGRAM_BOT_TOKEN or "").strip()
+    if not token:
+        return {"ok": False}
+    url = f"https://api.telegram.org/bot{token}/editMessageText"
+    payload = {"chat_id": chat_id, "message_id": message_id, "text": text}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
+    data = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url, data=data,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8", errors="replace"))
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+
+
+def _send_report_page(chat_id: str, section: str, page: int, message_id: int = None) -> None:
+    """Kelganlar yoki Kelmaganlar ro'yxatining berilgan sahifasini yuboradi.
+    message_id berilsa — mavjud messageni EDIT qiladi (yangi message yuborilmaydi).
+    """
     cache = _load_report_cache(chat_id)
     items = cache.get("present" if section == "present" else "absent", [])
 
@@ -533,7 +572,13 @@ def _send_report_page(chat_id: str, section: str, page: int) -> None:
     text = f"{header}\n{body}"
 
     keyboard = _build_pagination_keyboard(section, page, total_pages)
-    send_telegram_to_chat(chat_id, text, reply_markup=keyboard)
+
+    if message_id:
+        # Tugma bosilganda: mavjud messageni o'zgartir (yangi xabar yo'q)
+        _edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    else:
+        # Birinchi yuborish: yangi message
+        send_telegram_to_chat(chat_id, text, reply_markup=keyboard)
 
 
 def _send_daily_report_paginated(chat_id: str) -> None:
@@ -579,6 +624,117 @@ def _send_daily_report_paginated(chat_id: str) -> None:
     # Kelmaganlar sahifasi (1-sahifa) — bayram kuni emas
     if absent_count > 0 and not hol:
         _send_report_page(chat_id, "absent", 0)
+
+
+def _load_doctorant_cache(chat_id: str) -> dict:
+    """Doktorantlar uchun pagination cache ni qaytaradi (bo'sh bo'lsa yangilaydi)."""
+    from app.services.attendance_db import attendance_db
+    from app.services.user_db import user_db
+    from app.services.holidays_db import holidays_db
+
+    today = date.today()
+    today_iso = today.isoformat()
+    cache = _doc_report_pages_cache.get(chat_id, {})
+
+    if cache.get("date") == today_iso:
+        return cache
+
+    hol = holidays_db.get_label(today_iso)
+    all_users = user_db.get_all_users()
+    doc_users = {k: v for k, v in all_users.items() if v.get("is_doctorant", False)}
+    records = attendance_db.get_records_by_date(today_iso)
+
+    present_lines = []
+    absent_lines = []
+    for uid, udata in doc_users.items():
+        name = udata.get("full_name", uid)
+        if uid in records:
+            rec = records[uid]
+            cin_s = rec.get("check_in_time")
+            cin_dt = datetime.fromisoformat(cin_s) if cin_s else None
+            cin_disp = cin_dt.strftime("%H:%M") if cin_dt else "—"
+            present_lines.append(f"  • {name}: {cin_disp}")
+        else:
+            absent_lines.append(f"  • {name}")
+
+    cache = {
+        "date": today_iso,
+        "present": sorted(present_lines),
+        "absent": sorted(absent_lines),
+        "total": len(doc_users),
+        "is_holiday": bool(hol),
+    }
+    _doc_report_pages_cache[chat_id] = cache
+    return cache
+
+
+def _doc_pagination_keyboard(section: str, page: int, total_pages: int) -> dict | None:
+    """Doktorantlar uchun inline pagination keyboard (doc_page: prefix)."""
+    if total_pages <= 1:
+        return None
+    row = []
+    if page > 0:
+        row.append({"text": "⬅️ Oldingi", "callback_data": f"doc_page:{section}:{page - 1}"})
+    row.append({"text": f"{page + 1}/{total_pages}", "callback_data": f"doc_page:{section}:{page}"})
+    if page < total_pages - 1:
+        row.append({"text": "Keyingi ➡️", "callback_data": f"doc_page:{section}:{page + 1}"})
+    return {"inline_keyboard": [row]}
+
+
+def _send_doc_report_page(chat_id: str, section: str, page: int, message_id: int = None) -> None:
+    """Doktorant kelganlar/kelmaganlar sahifasini yuboradi yoki edit qiladi."""
+    import math
+    cache = _load_doctorant_cache(chat_id)
+    items = cache.get("present" if section == "present" else "absent", [])
+
+    total_pages = max(1, math.ceil(len(items) / PAGE_SIZE))
+    page = max(0, min(page, total_pages - 1))
+    chunk = items[page * PAGE_SIZE: (page + 1) * PAGE_SIZE]
+
+    if section == "present":
+        header = f"🎓✅ Kelganlar ({len(items)} kishi) — Sahifa {page+1}/{total_pages}:"
+    else:
+        header = f"🎓🔴 Kelmaganlar ({len(items)} kishi) — Sahifa {page+1}/{total_pages}:"
+
+    body = "\n".join(chunk) if chunk else "  — ro'yxat bo'sh"
+    text = f"{header}\n{body}"
+    keyboard = _doc_pagination_keyboard(section, page, total_pages)
+
+    if message_id:
+        _edit_message_text(chat_id, message_id, text, reply_markup=keyboard)
+    else:
+        send_telegram_to_chat(chat_id, text, reply_markup=keyboard)
+
+
+def _send_doctorant_report_paginated(chat_id: str) -> None:
+    """Doktorantlar hisobotini paginatsiya bilan yuboradi (faqat main adminga)."""
+    from app.services.holidays_db import holidays_db
+
+    today = date.today()
+    today_iso = today.isoformat()
+    hol = holidays_db.get_label(today_iso)
+
+    # Cache yangilash
+    _doc_report_pages_cache.pop(chat_id, None)
+    cache = _load_doctorant_cache(chat_id)
+
+    present_count = len(cache["present"])
+    absent_count = len(cache["absent"])
+    total = cache["total"]
+
+    # Xulosa
+    summary = (
+        f"🎓 <b>Doctorantlar hisoboti — {today_iso}</b>\n\n"
+        f"👥 Jami: {total}\n"
+        f"✅ Kelganlar: {present_count}\n"
+        f"🔴 Kelmaganlar: {absent_count}"
+    )
+    send_telegram_to_chat(chat_id, summary, parse_mode="HTML")
+
+    if present_count > 0:
+        _send_doc_report_page(chat_id, "present", 0)
+    if absent_count > 0 and not hol:
+        _send_doc_report_page(chat_id, "absent", 0)
 
 
 def _send_admin_list(chat_id: str) -> None:
@@ -1096,11 +1252,11 @@ def send_daily_summary_with_chart() -> dict:
         except Exception as e:
             errors.append(f"{cid} hisobot: {e}")
 
-    # Doctorant hisobotini faqat main adminga yuborish
+    # Doctorant hisobotini faqat main adminga paginated yuborish
     try:
-        _, doc_text = build_daily_summary_text()
-        if doc_text:
-            broadcast_to_main_only(doc_text, parse_mode="HTML")
+        main_cid = get_effective_chat_id()
+        if main_cid:
+            _send_doctorant_report_paginated(main_cid)
     except Exception as e:
         print(f"Doctorant hisobot xato: {e}")
 
