@@ -213,6 +213,10 @@ def send_telegram_to_chat(chat_id, text: str, parse_mode=None, reply_markup=None
 
 bot_admin_states = {}
 
+# Pagination cache: {chat_id: {"date": str, "present": [...], "absent": [...], "page_present": int, "page_absent": int}}
+_report_pages_cache: dict = {}
+PAGE_SIZE = 15
+
 
 def _main_admin_keyboard() -> dict:
     """Asosiy admin uchun reply keyboard."""
@@ -281,8 +285,19 @@ def process_telegram_updates_long_poll() -> None:
             cb_cid = str(cb_from.get("id", ""))
             cb_id = cb.get("id", "")
 
+            # ── Pagination callback ──
+            if cb_data.startswith("report_page:"):
+                # Format: report_page:<section>:<page>  section = present | absent
+                try:
+                    _, section, page_str = cb_data.split(":")
+                    page = int(page_str)
+                    _answer_callback_query(cb_id)
+                    _send_report_page(cb_cid, section, page)
+                except Exception:
+                    _answer_callback_query(cb_id, "⚠️ Xato")
+
             # Faqat asosiy admin o'chira oladi
-            if cb_cid == main_admin_id and cb_data.startswith("rm_admin:"):
+            elif cb_cid == main_admin_id and cb_data.startswith("rm_admin:"):
                 rm_chat_id = cb_data.split(":", 1)[1]
                 entries = get_extra_chat_ids()
                 removed_entry = None
@@ -296,7 +311,6 @@ def process_telegram_updates_long_poll() -> None:
                     save_extra_chat_ids(new_entries)
                     uname = removed_entry.get("username", removed_entry.get("label", rm_chat_id))
                     _answer_callback_query(cb_id, f"✅ {uname} o'chirildi")
-                    # Ro'yxatni yangilash uchun yangi xabar yuborish
                     _send_admin_list(cb_cid)
                 else:
                     _answer_callback_query(cb_id, "⚠️ Topilmadi")
@@ -356,11 +370,15 @@ def process_telegram_updates_long_poll() -> None:
                 bot_admin_states.pop(cid_str, None)
                 try:
                     photo_bytes = build_daily_summary_chart()
-                    staff_text, doc_text = build_daily_summary_text()
-                    _send_photo_to_chat(cid_str, photo_bytes, staff_text[:1020])
+                    _send_photo_to_chat(cid_str, photo_bytes, "")
+                except Exception:
+                    pass  # Grafik bo'lmasa ham hisobot ketadi
+                try:
+                    _send_daily_report_paginated(cid_str)
                     # Doctorant hisobotini faqat main adminga yuborish
+                    _, doc_text = build_daily_summary_text()
                     if doc_text:
-                        send_telegram_to_chat(cid, doc_text)
+                        send_telegram_to_chat(cid, doc_text, parse_mode="HTML")
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_main_admin_keyboard())
                 continue
@@ -405,11 +423,14 @@ def process_telegram_updates_long_poll() -> None:
         # Qo'shimcha admin buyruqlari (faqat kunlik hisobot)
         if is_extra_admin:
             if text == "📊 Kunlik hisobot yuborish":
-                send_telegram_to_chat(cid, "Grafik yaratilmoqda...", reply_markup=_extra_admin_keyboard())
+                send_telegram_to_chat(cid, "Hisobot tayyorlanmoqda...", reply_markup=_extra_admin_keyboard())
                 try:
                     photo_bytes = build_daily_summary_chart()
-                    staff_text, _ = build_daily_summary_text()
-                    _send_photo_to_chat(cid_str, photo_bytes, staff_text[:1020])
+                    _send_photo_to_chat(cid_str, photo_bytes, "")
+                except Exception:
+                    pass
+                try:
+                    _send_daily_report_paginated(cid_str)
                 except Exception as e:
                     send_telegram_to_chat(cid, f"Xato: {e}", reply_markup=_extra_admin_keyboard())
                 continue
@@ -426,6 +447,138 @@ def process_telegram_updates_long_poll() -> None:
 
     max_id = max(u["update_id"] for u in updates) + 1
     _write_next_offset(max_id)
+
+def _build_pagination_keyboard(section: str, page: int, total_pages: int) -> dict | None:
+    """Sahifalash uchun inline keyboard (Oldingi / Keyingi tugmalar)."""
+    if total_pages <= 1:
+        return None
+    buttons = []
+    row = []
+    if page > 0:
+        row.append({"text": "⬅️ Oldingi", "callback_data": f"report_page:{section}:{page - 1}"})
+    row.append({"text": f"{page + 1}/{total_pages}", "callback_data": f"report_page:{section}:{page}"})
+    if page < total_pages - 1:
+        row.append({"text": "Keyingi ➡️", "callback_data": f"report_page:{section}:{page + 1}"})
+    buttons.append(row)
+    return {"inline_keyboard": buttons}
+
+
+def _load_report_cache(chat_id: str) -> dict:
+    """Berilgan chat uchun pagination cache ni qaytaradi (bo'sh bo'lsa yangilaydi)."""
+    from app.services.attendance_db import attendance_db
+    from app.services.user_db import user_db
+    from app.services.schedule_settings import load_schedule, classify_attendance_status
+
+    today = date.today()
+    today_iso = today.isoformat()
+    cache = _report_pages_cache.get(chat_id, {})
+
+    # Agar bugungi cache mavjud bo'lsa qaytaramiz
+    if cache.get("date") == today_iso:
+        return cache
+
+    all_users = user_db.get_all_users()
+    staff_users = {k: v for k, v in all_users.items() if not v.get("is_doctorant", False)}
+    records = attendance_db.get_records_by_date(today_iso)
+    sched = load_schedule()
+
+    present_lines = []
+    for worker_id, rec in records.items():
+        if worker_id not in staff_users:
+            continue
+        info = user_db.get_user(worker_id) or {}
+        name = info.get("full_name", worker_id)
+        cin_s = rec.get("check_in_time")
+        cout_s = rec.get("check_out_time")
+        cin_dt = datetime.fromisoformat(cin_s) if cin_s else None
+        cout_dt = datetime.fromisoformat(cout_s) if cout_s else None
+        st = classify_attendance_status(cin_dt, cout_dt, today)
+        cin_disp = cin_dt.strftime("%H:%M") if cin_dt else "—"
+        present_lines.append(f"  • {name}: {cin_disp} ({st.get('label', '')})")
+
+    absent_lines = []
+    for uid in staff_users:
+        if uid not in records:
+            info = user_db.get_user(uid) or {}
+            absent_lines.append(f"  • {info.get('full_name', uid)}")
+
+    cache = {
+        "date": today_iso,
+        "present": sorted(present_lines),
+        "absent": sorted(absent_lines),
+        "work_start": sched.get("work_start", "—"),
+        "work_end": sched.get("work_end", "—"),
+        "total_staff": len(staff_users),
+    }
+    _report_pages_cache[chat_id] = cache
+    return cache
+
+
+def _send_report_page(chat_id: str, section: str, page: int) -> None:
+    """Kelganlar yoki Kelmaganlar ro'yxatining berilgan sahifasini yuboradi."""
+    cache = _load_report_cache(chat_id)
+    items = cache.get("present" if section == "present" else "absent", [])
+
+    import math
+    total_pages = max(1, math.ceil(len(items) / PAGE_SIZE))
+    page = max(0, min(page, total_pages - 1))
+    chunk = items[page * PAGE_SIZE: (page + 1) * PAGE_SIZE]
+
+    if section == "present":
+        header = f"✅ Kelganlar ({len(items)} kishi) — Sahifa {page+1}/{total_pages}:"
+    else:
+        header = f"🔴 Kelmaganlar ({len(items)} kishi) — Sahifa {page+1}/{total_pages}:"
+
+    body = "\n".join(chunk) if chunk else "  — ro'yxat bo'sh"
+    text = f"{header}\n{body}"
+
+    keyboard = _build_pagination_keyboard(section, page, total_pages)
+    send_telegram_to_chat(chat_id, text, reply_markup=keyboard)
+
+
+def _send_daily_report_paginated(chat_id: str) -> None:
+    """Kunlik hisobotni paginatsiya bilan yuboradi (asosiy xodimlar)."""
+    from app.services.holidays_db import holidays_db
+
+    today = date.today()
+    today_iso = today.isoformat()
+    hol = holidays_db.get_label(today_iso)
+
+    # Cache ni yangilash (bugungi sana bilan)
+    _report_pages_cache.pop(chat_id, None)
+    cache = _load_report_cache(chat_id)
+
+    present_count = len(cache["present"])
+    absent_count = len(cache["absent"])
+    total = cache["total_staff"]
+
+    # Asosiy xulosa xabari
+    pct = round(present_count / total * 100) if total > 0 else 0
+    if hol:
+        summary = (
+            f"📅 <b>{today_iso} — {hol}</b>\n"
+            f"(Ish kuni emas)\n\n"
+            f"👥 Jami xodimlar: {total}\n"
+            f"✅ Kelganlar: {present_count}\n"
+        )
+    else:
+        summary = (
+            f"📅 <b>Kunlik xulosa — {today_iso}</b>\n"
+            f"⏰ Ish vaqti: {cache['work_start']} – {cache['work_end']}\n\n"
+            f"👥 Jami xodimlar: {total}\n"
+            f"✅ Kelganlar: {present_count}\n"
+            f"🔴 Kelmaganlar: {absent_count}\n"
+            f"📊 Davomat: {pct}%"
+        )
+    send_telegram_to_chat(chat_id, summary, parse_mode="HTML")
+
+    # Kelganlar sahifasi (1-sahifa)
+    if present_count > 0:
+        _send_report_page(chat_id, "present", 0)
+
+    # Kelmaganlar sahifasi (1-sahifa) — bayram kuni emas
+    if absent_count > 0 and not hol:
+        _send_report_page(chat_id, "absent", 0)
 
 
 def _send_admin_list(chat_id: str) -> None:
@@ -504,8 +657,11 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
     user_info = user_db.get_user(worker_id) or {}
     is_doc = user_info.get("is_doctorant", False)
 
+    # Shtat birligini olish
+    staff_rate = user_info.get("staff_rate", 1.0)
+    rate_str = f"{staff_rate:g}"
+
     fn = html.escape(str(full_name or worker_id))
-    wid = html.escape(str(worker_id))
     doc_label = "🎓 " if is_doc else ""
     try:
         if event_type == "check_in":
@@ -515,7 +671,8 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
                 t = datetime.fromisoformat(cin).strftime("%H:%M:%S")
             text = (
                 f"🟢 <b>{doc_label}Kelish</b>\n"
-                f"👤 {fn} <code>{wid}</code>\n"
+                f"👤 {fn}\n"
+                f"📋 Shtat: {rate_str} birlik\n"
                 f"⏰ {t}"
             )
             if is_doc:
@@ -543,6 +700,7 @@ def notify_attendance_event(event_type: str, full_name: str, worker_id: str, rec
             text = (
                 f"🔵 <b>{doc_label}Ketish</b>\n"
                 f"👤 {fn}\n"
+                f"📋 Shtat: {rate_str} birlik\n"
                 f"⏰ Ketgan: {cout_disp}\n"
                 f"Kelgan: {cin_disp}\n"
                 f"📊 Ishlangan: {wt}"
@@ -902,28 +1060,10 @@ def _send_photo_to_chat(chat_id: str, photo_bytes: bytes, caption: str = "") -> 
 
 
 def send_daily_summary_with_chart() -> dict:
-    """Barcha chatlarga grafik + matn xulosasini yuboradi.
+    """Barcha chatlarga grafik + paginated xulosa yuboradi.
     Natija: {ok: bool, sent: int, errors: list}"""
     if not is_telegram_ready():
         return {"ok": False, "sent": 0, "errors": ["Telegram sozlanmagan"]}
-
-    try:
-        photo_bytes = build_daily_summary_chart()
-    except Exception as e:
-        print(f"Chart generation error: {e}")
-        # Fallback: faqat matn
-        staff_text, doc_text = build_daily_summary_text()
-        result = broadcast_to_all(staff_text)
-        # Doctorant hisobotini faqat main adminga yuborish
-        if doc_text:
-            broadcast_to_main_only(doc_text)
-        return result
-
-    staff_text, doc_text = build_daily_summary_text()
-    # Telegram caption limit 1024 belgi
-    caption = staff_text
-    if len(caption) > 1024:
-        caption = caption[:1020] + "..."
 
     all_chats = [get_effective_chat_id()] + [
         str(e.get("chat_id", "")).strip()
@@ -931,22 +1071,40 @@ def send_daily_summary_with_chart() -> dict:
         if str(e.get("chat_id", "")).strip()
     ]
 
+    # Grafik yaratish
+    photo_bytes = None
+    try:
+        photo_bytes = build_daily_summary_chart()
+    except Exception as e:
+        print(f"Chart generation error: {e}")
+
     sent = 0
     errors = []
     for cid in all_chats:
         if not cid:
             continue
-        r = _send_photo_to_chat(cid, photo_bytes, caption)
-        if r.get("ok"):
-            sent += 1
-        else:
-            errors.append(f"{cid}: {r.get('error', '?')}")
+        # Grafik yuborish
+        if photo_bytes:
+            r = _send_photo_to_chat(cid, photo_bytes, "")
+            if r.get("ok"):
+                sent += 1
+            else:
+                errors.append(f"{cid} grafik: {r.get('error', '?')}")
+        # Paginated ro'yxat yuborish
+        try:
+            _send_daily_report_paginated(cid)
+        except Exception as e:
+            errors.append(f"{cid} hisobot: {e}")
 
     # Doctorant hisobotini faqat main adminga yuborish
-    if doc_text:
-        broadcast_to_main_only(doc_text)
+    try:
+        _, doc_text = build_daily_summary_text()
+        if doc_text:
+            broadcast_to_main_only(doc_text, parse_mode="HTML")
+    except Exception as e:
+        print(f"Doctorant hisobot xato: {e}")
 
-    return {"ok": sent > 0, "sent": sent, "errors": errors}
+    return {"ok": sent > 0 or len(all_chats) > 0, "sent": sent, "errors": errors}
 
 def send_weekly_doctorant_summary() -> dict:
     """Haftalik doctorantlar yuklamasini hisoblab, Telegram orqali yuboradi."""
