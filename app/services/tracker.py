@@ -1,5 +1,14 @@
 import numpy as np
 import time
+from app.services.liveness import (
+    EAR_THRESHOLD,
+    EAR_CONSEC_FRAMES,
+    BLINKS_REQUIRED,
+    BLINK_TIMEOUT_SECONDS,
+    TEXTURE_SAMPLE_FRAMES,
+    GLASSES_FALLBACK_FRAMES,
+    GLASSES_TEXTURE_THRESHOLD,
+)
 
 class Tracker:
     CONFIRM_THRESHOLD = 3  # Need 3 consecutive same-name results to confirm identity
@@ -17,6 +26,28 @@ class Tracker:
         self.reverify_interval = 1.5  # Re-verify "Unknown" faces much faster (every 1.5s)
         self.unknown_retry_limit = 100  # Keep trying to recognize "Unknown" faces for a long time
 
+    def _new_liveness_state(self) -> dict:
+        """Liveness tracking uchun yangi holat obyekti."""
+        return {
+            # Blink detection
+            "blink_count":        0,      # Tasdiqlangan blinklar soni
+            "ear_below_count":    0,      # Ketma-ket past EAR framelari (blink aniqlash uchun)
+            "last_ear":           None,   # Oxirgi EAR qiymati (vizual uchun)
+
+            # Texture / spoof
+            "texture_scores":     [],     # So'nggi N ta texture balli
+            "texture_pass":       False,  # Texture tekshiruvidan o'tdimi
+
+            # Ko'zoynak fallback
+            "no_landmark_streak": 0,     # Ketma-ket landmark topilmagan framelari
+            "liveness_mode":      None,  # 'blink' | 'glasses' | None
+
+            # Yakuniy holat
+            "is_live":            False,  # Liveness to'liq tasdiqlangani
+            "is_spoof":           False,  # Spoof aniqlangani (rasm/video)
+            "liveness_start":     0.0,    # Kuzatuv boshlangan vaqt
+        }
+
     def _new_track_data(self, bbox):
         """Create fresh track data with voting fields."""
         return {
@@ -28,6 +59,8 @@ class Tracker:
             "lost": 0,
             "last_verified": 0,
             "verify_count": 0,
+            # Liveness holati (to'liq alohida dict)
+            "liveness": self._new_liveness_state(),
         }
 
     def _calculate_iou(self, box1, box2):
@@ -211,6 +244,8 @@ class Tracker:
                 data["confirmed"] = False
                 data["verify_count"] = 0
                 data["last_verified"] = 0
+                # Liveness holatini ham reset qilish
+                data["liveness"] = self._new_liveness_state()
 
     def reset_unknown_verifications(self):
         """Reset verification limit for all Unknown tracks to allow re-check after new registration"""
@@ -218,3 +253,117 @@ class Tracker:
             if data["name"] == "Unknown":
                 data["verify_count"] = 0
                 data["last_verified"] = 0  # Force immediate retry
+
+    # ── Liveness holati metodlari ──────────────────────────────────────────────
+
+    def update_liveness(self, track_id: int, metrics: dict) -> None:
+        """
+        Liveness detector'dan kelgan metrikalar asosida track holatini yangilaydi.
+        Blink detection va texture analysis natijalarini qayta ishlaydi.
+
+        Args:
+            track_id: Tracker ID
+            metrics:  liveness_detector.analyze_frame() qaytargan dict
+        """
+        if track_id not in self.tracks:
+            return
+
+        lv = self.tracks[track_id]["liveness"]
+        current_time = time.time()
+
+        # Birinchi marta liveness kuzatuvi boshlanayotgan bo'lsa — vaqtni belgilaymiz
+        if lv["liveness_start"] == 0.0:
+            lv["liveness_start"] = current_time
+
+        # ── Agar allaqachon xulosa chiqarilgan bo'lsa — ishlamaymiz ──
+        if lv["is_live"] or lv["is_spoof"]:
+            return
+
+        # ── Qatlam 1: Texture / Spoof Detection ──────────────────────────────
+        texture_score = metrics.get("texture_score", 0.0)
+        lv["texture_scores"].append(texture_score)
+        # Faqat so'nggi N ta namuna saqlanadi
+        lv["texture_scores"] = lv["texture_scores"][-TEXTURE_SAMPLE_FRAMES:]
+
+        if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
+            avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
+            lv["texture_pass"] = metrics.get("texture_pass", False) or (avg_texture >= 60.0)
+            # Juda past texture → spoof (bosma rasm)
+            if avg_texture < 20.0:
+                lv["is_spoof"] = True
+                return
+        else:
+            lv["texture_pass"] = metrics.get("texture_pass", False)
+
+        # ── Qatlam 2: Blink Detection (EAR) ──────────────────────────────────
+        ear = metrics.get("ear")
+        has_landmarks = metrics.get("has_landmarks", False)
+
+        if ear is not None and has_landmarks:
+            # Landmark topildi — blink detection ishlaydi
+            lv["no_landmark_streak"] = 0   # streak'ni reset qilamiz
+            lv["last_ear"] = ear
+
+            if ear < EAR_THRESHOLD:
+                # Ko'z yopilmoqda
+                lv["ear_below_count"] += 1
+            else:
+                # Ko'z ochildi — agar yetarli konsekutiv frame bo'lsa → blink
+                if lv["ear_below_count"] >= EAR_CONSEC_FRAMES:
+                    lv["blink_count"] += 1
+                lv["ear_below_count"] = 0
+        else:
+            # Landmark topilmadi (ko'zoynak, burchak, past yorug'lik)
+            lv["no_landmark_streak"] = lv.get("no_landmark_streak", 0) + 1
+
+        # ── Qatlam 3: Ko'zoynak Fallback (Glasses Mode) ───────────────────────
+        # Landmark uzoq vaqt topilmasa lekin texture barqaror yaxshi bo'lsa → LIVE
+        no_lm = lv["no_landmark_streak"]
+        if no_lm >= GLASSES_FALLBACK_FRAMES and len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
+            avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
+            if avg_texture >= GLASSES_TEXTURE_THRESHOLD:
+                lv["is_live"]       = True
+                lv["liveness_mode"] = "glasses"
+                return  # Glasses rejimi orqali tasdiqlandi
+
+        # ── Timeout tekshiruvi ────────────────────────────────────────────────
+        elapsed = current_time - lv["liveness_start"]
+        if elapsed > BLINK_TIMEOUT_SECONDS and not lv["is_live"]:
+            if lv["blink_count"] < BLINKS_REQUIRED:
+                # Qayta urinish: davomiylikni reset qilamiz, lekin blink_count saqlaymiz
+                lv["liveness_start"] = current_time
+
+        # ── Xulosa: LIVE (blink rejimi) ───────────────────────────────────────
+        if lv["blink_count"] >= BLINKS_REQUIRED:
+            lv["is_live"]       = True
+            lv["liveness_mode"] = "blink"
+
+    def get_liveness_state(self, track_id: int) -> dict:
+        """
+        Track uchun joriy liveness holati.
+
+        Returns:
+            dict: {
+                'is_live':       bool,
+                'is_spoof':      bool,
+                'blink_count':   int,
+                'texture_pass':  bool,
+                'last_ear':      float | None,
+                'liveness_mode': str | None,   # 'blink' | 'glasses' | None
+                'no_landmark_streak': int,     # Landmark topilmagan framelari
+            }
+        """
+        if track_id not in self.tracks:
+            return {"is_live": False, "is_spoof": False, "blink_count": 0,
+                    "texture_pass": False, "last_ear": None,
+                    "liveness_mode": None, "no_landmark_streak": 0}
+        lv = self.tracks[track_id]["liveness"]
+        return {
+            "is_live":            lv["is_live"],
+            "is_spoof":           lv["is_spoof"],
+            "blink_count":        lv["blink_count"],
+            "texture_pass":       lv["texture_pass"],
+            "last_ear":           lv["last_ear"],
+            "liveness_mode":      lv.get("liveness_mode"),
+            "no_landmark_streak": lv.get("no_landmark_streak", 0),
+        }

@@ -4,6 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse, RedirectResponse,
 from app.services.camera import camera_service
 from app.services.detector import detector
 from app.services.recognizer import recognizer
+from app.services.liveness import liveness_detector, BLINKS_REQUIRED
 import cv2
 import numpy as np
 import time
@@ -249,8 +250,29 @@ def generate_frames(mode="verification"):
                             name = "Unknown"
                             face_tracker.set_name(tid, name)
                     
-                    # ── Attendance logging & Visual Feedback ──
-                    # CRITICAL: Only log to DB when identity is CONFIRMED (multi-frame voting passed)
+                    # ── Liveness Detection ────────────────────────────────────────────
+                    # Faqat shaxs aniqlangandan keyin (is_confirmed) tekshiramiz.
+                    # Bu performance'ni optimallashtiradi: Unknown yuzlar uchun
+                    # dlib landmark hisoblashdan qochamiz.
+                    lv_state = face_tracker.get_liveness_state(tid)
+                    is_live  = lv_state["is_live"]
+                    is_spoof = lv_state["is_spoof"]
+
+                    if is_confirmed and name and name != "Unknown" and not is_live and not is_spoof:
+                        try:
+                            metrics = liveness_detector.analyze_frame(frame, (x1, y1, x2, y2))
+                            face_tracker.update_liveness(tid, metrics)
+                            # Yangilangan holatni o'qiymiz
+                            lv_state = face_tracker.get_liveness_state(tid)
+                            is_live  = lv_state["is_live"]
+                            is_spoof = lv_state["is_spoof"]
+                        except Exception as lv_err:
+                            print(f"Liveness xatosi (tid={tid}): {lv_err}")
+
+                    # ── Attendance logging ──────────────────────────────────────────────
+                    # MUHIM: Attendance FAQAT shaxs tasdiqlangan VA jonli bo'lganda!
+                    # is_confirmed → multi-frame voting o'tdi
+                    # is_live      → blink detection o'tdi (rasm/video emas)
                     if name:
                         current_time = time.time()
                         last_db = attendance_debounce.get(name, 0)
@@ -258,8 +280,8 @@ def generate_frames(mode="verification"):
                         
                         # Logic for Known Users
                         if name != "Unknown":
-                            # Only log attendance for CONFIRMED identities
-                            if is_confirmed:
+                            # IKKALA shart ham bajarilishi shart: confirmed + live
+                            if is_confirmed and is_live:
                                 should_log_db = (current_time - last_db >= DEBOUNCE_SECONDS)
                                 should_show_visual = (current_time - last_visual >= VISUAL_DEBOUNCE_SECONDS)
                                 
@@ -277,7 +299,7 @@ def generate_frames(mode="verification"):
                                         })
                                     except asyncio.QueueFull:
                                         pass
-                            # else: not confirmed yet — do NOT log to DB
+                            # else: confirmed lekin hali live emas — kutamiz
                         
                         # Logic for Unknown Users
                         else:
@@ -294,21 +316,36 @@ def generate_frames(mode="verification"):
                                 except asyncio.QueueFull:
                                     pass
                     
-                    # ── Draw Results ──
-                    # 3 states: Confirmed (green), Verifying (yellow), Unknown (red)
+                    # ── Draw Results ──────────────────────────────────────────────────
+                    # 4 holat:
+                    # 🔴 Unknown         → qizil
+                    # 🟡 Verifying       → sariq
+                    # 🔵 Liveness Check  → ko'k (shaxs aniqlangan, blink kutilmoqda)
+                    # 🟢 VERIFIED        → yashil (to'liq tasdiqlangan)
+                    # ⚪ SPOOF DETECTED  → kulrang
                     if name:
-                        if name == "Unknown":
-                            color = (0, 0, 255)  # Red
+                        if is_spoof:
+                            color = (100, 100, 100)   # Kulrang
+                            label = "SPOOF DETECTED"
+                            text_color = (255, 255, 255)
+                        elif name == "Unknown":
+                            color = (0, 0, 255)        # Qizil
                             label = "Unknown"
-                            text_color = (255, 255, 255)  # White text
-                        elif is_confirmed:
-                            color = (0, 255, 0)  # Green — confirmed
-                            label = f"ID:{tid} | {name}"
-                            text_color = (0, 0, 0)  # Black text
+                            text_color = (255, 255, 255)
+                        elif is_confirmed and is_live:
+                            color = (0, 255, 0)        # Yashil — to'liq tasdiqlandi
+                            label = f"✓ {name}"
+                            text_color = (0, 0, 0)
+                        elif is_confirmed and not is_live:
+                            # Shaxs aniqlangan, liveness tekshirilmoqda
+                            blink_count = lv_state.get("blink_count", 0)
+                            color = (255, 180, 0)      # Ko'k-sariq (teal)
+                            label = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
+                            text_color = (0, 0, 0)
                         else:
-                            color = (0, 200, 255)  # Yellow/Orange — verifying
+                            color = (0, 200, 255)      # Sariq — hali tasdiqlanmadi
                             label = f"Verifying: {name}..."
-                            text_color = (0, 0, 0)  # Black text
+                            text_color = (0, 0, 0)
 
                         # High-tech corner bounding box
                         t = 2; l = 20

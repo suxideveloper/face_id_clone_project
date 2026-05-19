@@ -13,6 +13,7 @@ import asyncio
 from app.services.detector import detector
 from app.services.recognizer import recognizer
 from app.services.tracker import Tracker
+from app.services.liveness import liveness_detector, BLINKS_REQUIRED
 
 # Face quality filter constants
 MIN_FACE_SIZE = 80    # pixels — ignore faces smaller than 80x80
@@ -119,16 +120,31 @@ class VideoProcessor:
                     name = "Unknown"
                     self.tracker.set_name(tid, name)
 
-            # ── Attendance logging & Visual Feedback ──
-            # CRITICAL: Only log to DB when identity is CONFIRMED (multi-frame voting passed)
+            # ── Liveness Detection ────────────────────────────────────────────
+            lv_state = self.tracker.get_liveness_state(tid)
+            is_live  = lv_state["is_live"]
+            is_spoof = lv_state["is_spoof"]
+
+            if is_confirmed and name and name != "Unknown" and not is_live and not is_spoof:
+                try:
+                    metrics = liveness_detector.analyze_frame(frame, (x1, y1, x2, y2))
+                    self.tracker.update_liveness(tid, metrics)
+                    lv_state = self.tracker.get_liveness_state(tid)
+                    is_live  = lv_state["is_live"]
+                    is_spoof = lv_state["is_spoof"]
+                except Exception as lv_err:
+                    print(f"Liveness xatosi (VP tid={tid}): {lv_err}")
+
+            # ── Attendance logging ────────────────────────────────────────────
+            # MUHIM: IKKALA shart: confirmed + live
             if name:
                 current_time = time.time()
                 last_db = self.attendance_debounce.get(name, 0)
                 last_visual = self.visual_debounce.get(name, 0)
 
                 if name != "Unknown":
-                    # Only log attendance for CONFIRMED identities
-                    if is_confirmed:
+                    # Only log attendance for CONFIRMED + LIVE identities
+                    if is_confirmed and is_live:
                         should_log_db = (current_time - last_db >= self.DEBOUNCE_SECONDS)
                         should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
 
@@ -146,7 +162,7 @@ class VideoProcessor:
                                 })
                             except asyncio.QueueFull:
                                 pass
-                    # else: not confirmed yet — do NOT log to DB
+                    # else: confirmed lekin hali live emas — kutamiz
                 else:
                     should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
                     if should_show_visual:
@@ -160,19 +176,29 @@ class VideoProcessor:
                         except asyncio.QueueFull:
                             pass
 
-            # ── Build result for this face ──
-            # 3 states: Confirmed (green), Verifying (yellow), Unknown (red)
+            # ── Build result for this face ────────────────────────────────────
+            # 4 holat: Unknown / Verifying / Liveness Check / Verified
             face_result = {
                 "id": tid,
                 "bbox": [int(x1), int(y1), int(x2), int(y2)],
                 "name": name or "Unknown",
                 "is_confirmed": is_confirmed,
+                "is_live":      is_live,
+                "is_spoof":     is_spoof,
+                "blink_count":  lv_state.get("blink_count", 0),
             }
-            if name and name != "Unknown" and is_confirmed:
+            if is_spoof:
+                face_result["color"] = "gray"
+                face_result["label"] = "SPOOF DETECTED"
+            elif name and name != "Unknown" and is_confirmed and is_live:
                 face_result["color"] = "green"
-                face_result["label"] = f"ID:{tid} | {name}"
-            elif name and name != "Unknown" and not is_confirmed:
+                face_result["label"] = f"✓ {name}"
+            elif name and name != "Unknown" and is_confirmed and not is_live:
+                blink_count = lv_state.get("blink_count", 0)
                 face_result["color"] = "orange"
+                face_result["label"] = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
+            elif name and name != "Unknown" and not is_confirmed:
+                face_result["color"] = "yellow"
                 face_result["label"] = f"Verifying: {name}..."
             else:
                 face_result["color"] = "red"
