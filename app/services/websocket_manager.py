@@ -69,6 +69,16 @@ class WebSocketManager:
             "check_in_time": check_in_time,
             "timestamp": self._get_timestamp()
         })
+
+    async def send_not_employee(self):
+        """Send a 'not_employee' event: person passed liveness but is NOT registered."""
+        await self.broadcast({
+            "status": "not_employee",
+            "name": "Unknown",
+            "worker_id": "Unknown",
+            "message": "Bu shaxs tizimda ro'yxatdan o'tmagan",
+            "timestamp": self._get_timestamp()
+        })
     
     def _get_timestamp(self) -> str:
         from datetime import datetime

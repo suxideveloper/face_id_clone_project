@@ -121,11 +121,18 @@ class VideoProcessor:
                     self.tracker.set_name(tid, name)
 
             # ── Liveness Detection ────────────────────────────────────────────
+            # PARALLEL MODE: Liveness confirmed bo'lishini KUTMAYDI.
+            # pending_name topilgandan DARHOL liveness boshlanadi.
+            # Bu recognition va liveness'ni parallel olib boradi.
             lv_state = self.tracker.get_liveness_state(tid)
             is_live  = lv_state["is_live"]
             is_spoof = lv_state["is_spoof"]
 
-            if is_confirmed and name and name != "Unknown" and not is_live and not is_spoof:
+            pending_name = self.tracker.tracks.get(tid, {}).get("pending_name")
+            # Liveness ishlashi uchun: pending_name bo'lsa YOKI confirmed bo'lsa (Unknown emas)
+            has_candidate = (pending_name and pending_name != "Unknown") or (is_confirmed and name and name != "Unknown")
+
+            if has_candidate and not is_live and not is_spoof:
                 try:
                     metrics = liveness_detector.analyze_frame(frame, (x1, y1, x2, y2))
                     self.tracker.update_liveness(tid, metrics)
@@ -164,14 +171,17 @@ class VideoProcessor:
                                 pass
                     # else: confirmed lekin hali live emas — kutamiz
                 else:
+                    # Unknown yuz: liveness o'tib ham xodim topilmasa → 'not_employee' signal
                     should_show_visual = (current_time - last_visual >= self.VISUAL_DEBOUNCE_SECONDS)
                     if should_show_visual:
                         self.visual_debounce[name] = current_time
                         try:
+                            event_type = "not_employee" if is_live else "unknown"
                             attendance_queue.put_nowait({
                                 "worker_id": "Unknown",
                                 "frame": frame.copy(),
-                                "log_db": False
+                                "log_db": False,
+                                "event_type": event_type,
                             })
                         except asyncio.QueueFull:
                             pass

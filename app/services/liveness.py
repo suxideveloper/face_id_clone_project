@@ -42,8 +42,8 @@ logger = logging.getLogger(__name__)
 # Blink Detection (EAR)
 EAR_THRESHOLD = 0.21          # Qo'z yopiq: EAR < bu qiymat
 EAR_CONSEC_FRAMES = 2         # Necha consecutive frame past EAR → bir blink
-BLINKS_REQUIRED = 2           # Liveness tasdiqlash uchun kerakli blink soni
-BLINK_TIMEOUT_SECONDS = 8.0   # Shu vaqt ichida blink bo'lmasa → fail
+BLINKS_REQUIRED = 1           # Liveness tasdiqlash uchun kerakli blink soni (1 ta yetarli)
+BLINK_TIMEOUT_SECONDS = 5.0   # Shu vaqt ichida blink bo'lmasa → fail (8s o'rniga 5s)
 
 # Texture / Spoof Detection
 TEXTURE_THRESHOLD = 60.0      # Laplacian variance. Pastroq = xiralash = rasm
@@ -51,9 +51,9 @@ TEXTURE_SAMPLE_FRAMES = 3     # Necha frameda tekshirish (noto'g'ri ijobiyni kam
 
 # Ko'zoynak Fallback (Glasses Mode)
 # Landmark aniqlanmasa shu qadar ketma-ket frame o'tsa → texture-only rejimga o'tish
-GLASSES_FALLBACK_FRAMES = 20  # ≈ 28FPS da ~0.7 soniya
+GLASSES_FALLBACK_FRAMES = 12  # ≈ 28FPS da ~0.4 soniya (20 o'rniga 12 — tezroq)
 # Texture-only rejim uchun qat'iyroq threshold (blink yo'q, texture ishonchliroq bo'lishi kerak)
-GLASSES_TEXTURE_THRESHOLD = 120.0  # Odatiy 60.0 dan ikki baravar qat'iy
+GLASSES_TEXTURE_THRESHOLD = 100.0  # Odatiy 60.0 dan kattaroq (120.0 o'rniga 100.0)
 
 # Landmark indekslari (dlib 68-point)
 LEFT_EYE_INDICES  = list(range(36, 42))   # 6 ta nuqta: chapki ko'z

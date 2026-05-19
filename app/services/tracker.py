@@ -11,7 +11,7 @@ from app.services.liveness import (
 )
 
 class Tracker:
-    CONFIRM_THRESHOLD = 3  # Need 3 consecutive same-name results to confirm identity
+    CONFIRM_THRESHOLD = 2  # Need 2 consecutive same-name results to confirm identity (reduced for speed)
 
     def __init__(self, max_lost=60, iou_threshold=0.4):
         """
@@ -25,6 +25,8 @@ class Tracker:
         self.iou_threshold = iou_threshold
         self.reverify_interval = 1.5  # Re-verify "Unknown" faces much faster (every 1.5s)
         self.unknown_retry_limit = 100  # Keep trying to recognize "Unknown" faces for a long time
+        # Liveness parallel mode: start liveness even before full confirmation
+        self.liveness_parallel = True
 
     def _new_liveness_state(self) -> dict:
         """Liveness tracking uchun yangi holat obyekti."""
@@ -117,7 +119,7 @@ class Tracker:
                 
                 # Case 1: Not yet confirmed — keep re-verifying rapidly
                 if not confirmed and name != "Unknown":
-                    if current_time - last_verified > 0.3:  # Re-verify every 0.3s for fast confirmation
+                    if current_time - last_verified > 0.2:  # Re-verify every 0.2s for fast confirmation
                         needs_reverify = True
 
                 # Case 2: Unknown face — retry periodically

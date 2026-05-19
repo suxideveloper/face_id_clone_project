@@ -1784,8 +1784,14 @@ async def process_attendance_queue():
             log_db = event.get("log_db", True)
             
             if worker_id == "Unknown":
-                # Special handling for unknown users
-                await ws_manager.send_check_in("Unknown", "Unknown")
+                # Distinguish: liveness o'tib lekin tizimda yo'q (not_employee) vs oddiy Unknown
+                event_subtype = event.get("event_type", "unknown")
+                if event_subtype == "not_employee":
+                    # Haqiqiy inson, lekin ro'yxatdan o'tmagan
+                    await ws_manager.send_not_employee()
+                else:
+                    # Oddiy unknown (liveness ham o'tmagan) — hech narsa ko'rsatmaymiz
+                    pass
             
             elif log_db:
                 # Record attendance (heavy db write)

@@ -110,13 +110,23 @@
                     </div>
                 </div>
 
-                <!-- Unregistered State -->
+                <!-- Unregistered State (generic Unknown — liveness o'tmagan) -->
                 <div class="unregistered-state hidden" id="unregisteredState">
                     <div class="unregistered-header">
                         <div class="u-icon">✕</div>
                         <h2>Ro'yxatdan o'tilmagan</h2>
                     </div>
                     <p>Iltimos, HR bo'limiga murojaat qiling</p>
+                </div>
+
+                <!-- Not-Employee State (liveness o'tdi lekin tizimda yo'q) -->
+                <div class="not-employee-state hidden" id="notEmployeeState">
+                    <div class="not-employee-header">
+                        <div class="ne-icon">⚠</div>
+                        <h2>Tizimda ro'yxatdan o'tmagan</h2>
+                    </div>
+                    <p>Bu shaxs xodimlar ro'yxatida mavjud emas</p>
+                    <div class="ne-sub">HR bo'limiga murojaat qiling</div>
                 </div>
             </div>
         </div>
@@ -590,7 +600,6 @@
         padding: 40px;
         border-radius: 28px;
         background: #fef2f2;
-        /* Light red bg */
         border: 2px solid #fee2e2;
         box-shadow: var(--shadow-lg);
         animation: shake 0.5s cubic-bezier(.36, .07, .19, .97) both;
@@ -619,7 +628,6 @@
     .unregistered-state h2 {
         font-size: 1.8rem;
         color: #b91c1c;
-        /* Darker red */
         margin: 0;
         font-weight: 700;
     }
@@ -629,6 +637,64 @@
         font-size: 1.1rem;
         margin-top: 12px;
         font-weight: 500;
+    }
+
+    /* Not-Employee State (liveness o'tdi lekin tizimda ro'yxatdan o'tmagan) */
+    .not-employee-state {
+        text-align: center;
+        padding: 40px;
+        border-radius: 28px;
+        background: #fffbeb;
+        border: 2px solid #fde68a;
+        box-shadow: var(--shadow-lg);
+        animation: popIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .not-employee-header {
+        margin-bottom: 20px;
+        color: #d97706;
+    }
+
+    .ne-icon {
+        width: 64px;
+        height: 64px;
+        background: linear-gradient(135deg, #f59e0b, #d97706);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.2rem;
+        font-weight: bold;
+        margin: 0 auto 16px;
+        box-shadow: 0 4px 16px rgba(245, 158, 11, 0.4);
+    }
+
+    .not-employee-state h2 {
+        font-size: 1.6rem;
+        color: #92400e;
+        margin: 0;
+        font-weight: 700;
+        line-height: 1.3;
+    }
+
+    .not-employee-state p {
+        color: #78350f;
+        font-size: 1.05rem;
+        margin-top: 14px;
+        font-weight: 500;
+    }
+
+    .ne-sub {
+        display: inline-block;
+        margin-top: 16px;
+        background: #fef3c7;
+        border: 1px solid #fde68a;
+        color: #92400e;
+        font-size: 0.9rem;
+        font-weight: 600;
+        padding: 8px 20px;
+        border-radius: 20px;
     }
 
     @keyframes shake {
@@ -940,50 +1006,47 @@
         }
     }
 
-    function showUserVerification(data) {
-        if (!data.name) return;
+    const notEmployeeState = document.getElementById('notEmployeeState');
 
-        // Reset unknown timer if a valid user is detected
-        if (data.name !== "Unknown") {
-            if (unknownTimer) {
-                clearTimeout(unknownTimer);
-                unknownTimer = null;
-            }
-            if (resetUnknownTimer) {
-                clearTimeout(resetUnknownTimer);
+    function hideAllStates() {
+        waitingState.classList.add('hidden');
+        verifiedState.classList.add('hidden');
+        document.getElementById('unregisteredState').classList.add('hidden');
+        notEmployeeState.classList.add('hidden');
+    }
+
+    function showUserVerification(data) {
+        if (!data || !data.name) return;
+
+        // ── not_employee: haqiqiy inson, lekin ro'yxatdan o'tmagan ──
+        if (data.status === 'not_employee') {
+            // Agar allaqachon ko'rsatilayotgan bo'lsa — skip
+            if (!notEmployeeState.classList.contains('hidden')) return;
+
+            hideAllStates();
+            notEmployeeState.classList.remove('hidden');
+
+            // 4 sekunddan keyin waiting holatiga qaytamiz
+            if (resetUnknownTimer) clearTimeout(resetUnknownTimer);
+            resetUnknownTimer = setTimeout(() => {
+                notEmployeeState.classList.add('hidden');
+                waitingState.classList.remove('hidden');
                 resetUnknownTimer = null;
-            }
-            // Hide unregistered state if it's showing
-            const unregisteredState = document.getElementById('unregisteredState');
-            if (unregisteredState && !unregisteredState.classList.contains('hidden')) {
-                unregisteredState.classList.add('hidden');
-            }
+            }, 4000);
+            return;
         }
 
-        // Handle "Unknown" detection
+        // ── Tasdiqlangan xodim uchun: barcha unknown timerlarni tozalash ──
+        if (data.name !== "Unknown") {
+            if (unknownTimer) { clearTimeout(unknownTimer); unknownTimer = null; }
+            if (resetUnknownTimer) { clearTimeout(resetUnknownTimer); resetUnknownTimer = null; }
+            notEmployeeState.classList.add('hidden');
+            document.getElementById('unregisteredState').classList.add('hidden');
+        }
+
+        // ── Unknown detection (liveness o'tmagan) — hech narsa ko'rsatmaymiz ──
+        // (Chunki liveness o'tmagan Unknown uchun routes.py dan xabar kelmaydi)
         if (data.name === "Unknown") {
-            // If we are already showing the unregistered state, do nothing
-            const unregisteredState = document.getElementById('unregisteredState');
-            if (!unregisteredState.classList.contains('hidden')) return;
-
-            // If timer is not running, start it
-            if (!unknownTimer) {
-                unknownTimer = setTimeout(() => {
-                    // Show unregistered state
-                    waitingState.classList.add('hidden');
-                    verifiedState.classList.add('hidden');
-                    unregisteredState.classList.remove('hidden');
-
-                    // Reset back to waiting after 3 seconds
-                    resetUnknownTimer = setTimeout(() => {
-                        unregisteredState.classList.add('hidden');
-                        waitingState.classList.remove('hidden');
-                        unknownTimer = null;
-                        resetUnknownTimer = null;
-                    }, 3000);
-
-                }, 6000);
-            }
             return;
         }
 
