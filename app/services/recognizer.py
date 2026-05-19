@@ -11,8 +11,8 @@ from app.services.detector import detector  # Import YOLO detector
 
 class FaceRecognizer:
     def __init__(self):
-        self.tolerance = 0.42  # Tightened from 0.45; multi-frame voting handles the rest
-        self.margin_threshold = 0.06  # Min gap between best and second-best different-user match
+        self.tolerance = 0.48  # Webcam + JPEG compression uchun yetarli (eski: 0.42 juda qat'iy edi)
+        self.margin_threshold = 0.04  # Min gap between best and second-best different-user match
 
     @property
     def user_encodings(self):
@@ -144,8 +144,13 @@ class FaceRecognizer:
 
             best = results[0]
 
+            # DEBUG: har doim chop etish — qaysi distance da reject/accept bo'layotganini ko'rish
+            top_info = [(r.username, round(r.distance, 4)) for r in results[:3]]
+            print(f"[RECOGNIZE] Top matches: {top_info} | tolerance={self.tolerance}")
+
             # Check 1: Is the best match within tolerance?
             if best.distance >= self.tolerance:
+                print(f"[RECOGNIZE] REJECTED: {best.username} distance={best.distance:.4f} >= tolerance={self.tolerance}")
                 return "Unknown"
 
             # Check 2: Top-2 margin — find the closest match from a DIFFERENT user
@@ -154,9 +159,11 @@ class FaceRecognizer:
                     margin = r.distance - best.distance
                     if margin < self.margin_threshold:
                         # Too ambiguous — the two users are too similar
+                        print(f"[RECOGNIZE] AMBIGUOUS: {best.username}({best.distance:.4f}) vs {r.username}({r.distance:.4f}), margin={margin:.4f} < {self.margin_threshold}")
                         return "Unknown"
                     break  # Only need to check the first different user
 
+            print(f"[RECOGNIZE] ACCEPTED: {best.username} distance={best.distance:.4f}")
             return best.username
 
     def delete_user_encodings(self, name: str):
