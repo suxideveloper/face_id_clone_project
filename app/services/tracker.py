@@ -39,6 +39,7 @@ class Tracker:
 
             # Texture / spoof
             "texture_scores":     [],     # So'nggi N ta texture balli
+            "region_cvs":         [],     # So'nggi N ta regional CV balli
             "texture_pass":       False,  # Texture tekshiruvidan o'tdimi
 
             # Ko'zoynak fallback
@@ -286,31 +287,37 @@ class Tracker:
         texture_score = metrics.get("texture_score", 0.0)
         region_cv     = metrics.get("region_cv", 1.0)   # Default 1.0 = o'tadi
         lv["texture_scores"].append(texture_score)
-        # Faqat so'nggi N ta namuna saqlanadi
         lv["texture_scores"] = lv["texture_scores"][-TEXTURE_SAMPLE_FRAMES:]
+
+        if "region_cvs" not in lv:
+            lv["region_cvs"] = []
+        lv["region_cvs"].append(region_cv)
+        lv["region_cvs"] = lv["region_cvs"][-TEXTURE_SAMPLE_FRAMES:]
 
         if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
             avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
-            lv["texture_pass"] = metrics.get("texture_pass", False) or (avg_texture >= liveness_mod.TEXTURE_THRESHOLD)
+            avg_cv      = sum(lv["region_cvs"]) / len(lv["region_cvs"])
+            
+            # Ikkala shart ham o'rtacha qiymatga ko'ra tekshiriladi
+            lv["texture_pass"] = (avg_texture >= liveness_mod.TEXTURE_THRESHOLD) and (avg_cv >= liveness_mod.SPOOF_REGION_CV_MIN)
+
             # Juda past texture → spoof (bosma rasm, qorong'u)
             if avg_texture < 20.0:
                 lv["is_spoof"] = True
+                print(f"[TRACKER SPOOF] low avg_texture: {avg_texture:.2f}")
                 return
-            # Juda tekis regional texture → ekran rasmi (spoof)
-            if region_cv < SPOOF_REGION_CV_MIN and avg_texture < liveness_mod.TEXTURE_THRESHOLD:
+            # Juda tekis regional texture → ekran rasmi yoki bosma qog'oz (spoof)
+            if avg_cv < liveness_mod.SPOOF_REGION_CV_MIN:
                 lv["is_spoof"] = True
+                print(f"[TRACKER SPOOF] low avg_cv: {avg_cv:.4f} (avg_texture: {avg_texture:.2f})")
                 return
         else:
-            lv["texture_pass"] = metrics.get("texture_pass", False)
+            lv["texture_pass"] = False
 
         # ── PASSIVE ONLY MODE ──
         if liveness_mod.PASSIVE_LIVENESS_ONLY:
-            # Ikkala shart: keskinlik VA regional notekislik
-            if (
-                len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES
-                and lv["texture_pass"]
-                and region_cv >= SPOOF_REGION_CV_MIN
-            ):
+            # Ikkala shart: keskinlik VA regional notekislik (o'rtacha qiymatlar bo'yicha)
+            if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES and lv["texture_pass"]:
                 lv["is_live"] = True
                 lv["liveness_mode"] = "passive"
             return

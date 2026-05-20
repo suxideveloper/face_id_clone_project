@@ -234,6 +234,8 @@ class LivenessDetector:
             and region_cv  >= SPOOF_REGION_CV_MIN
         )
 
+        print(f"[LIVENESS DEBUG] texture_score: {texture_score:.2f}, region_cv: {region_cv:.4f}, texture_pass: {texture_pass}")
+
         return {
             "ear":           ear,
             "texture_score": texture_score,
