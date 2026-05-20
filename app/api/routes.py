@@ -4,7 +4,7 @@ from fastapi.responses import StreamingResponse, JSONResponse, RedirectResponse,
 from app.services.camera import camera_service
 from app.services.detector import detector
 from app.services.recognizer import recognizer
-from app.services.liveness import liveness_detector, BLINKS_REQUIRED
+from app.services.liveness import liveness_detector, BLINKS_REQUIRED, PASSIVE_LIVENESS_ONLY
 import cv2
 import numpy as np
 import time
@@ -338,9 +338,13 @@ def generate_frames(mode="verification"):
                             text_color = (0, 0, 0)
                         elif is_confirmed and not is_live:
                             # Shaxs aniqlangan, liveness tekshirilmoqda
-                            blink_count = lv_state.get("blink_count", 0)
-                            color = (255, 180, 0)      # Ko'k-sariq (teal)
-                            label = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
+                            if PASSIVE_LIVENESS_ONLY:
+                                color = (255, 180, 0)
+                                label = f"Checking liveness: {name}"
+                            else:
+                                blink_count = lv_state.get("blink_count", 0)
+                                color = (255, 180, 0)      # Ko'k-sariq (teal)
+                                label = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
                             text_color = (0, 0, 0)
                         else:
                             color = (0, 200, 255)      # Sariq — hali tasdiqlanmadi
