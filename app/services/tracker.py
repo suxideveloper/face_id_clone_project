@@ -8,6 +8,7 @@ from app.services.liveness import (
     TEXTURE_SAMPLE_FRAMES,
     GLASSES_FALLBACK_FRAMES,
     GLASSES_TEXTURE_THRESHOLD,
+    SPOOF_REGION_CV_MIN,
 )
 
 class Tracker:
@@ -283,6 +284,7 @@ class Tracker:
 
         # ── Qatlam 1: Texture / Spoof Detection ──────────────────────────────
         texture_score = metrics.get("texture_score", 0.0)
+        region_cv     = metrics.get("region_cv", 1.0)   # Default 1.0 = o'tadi
         lv["texture_scores"].append(texture_score)
         # Faqat so'nggi N ta namuna saqlanadi
         lv["texture_scores"] = lv["texture_scores"][-TEXTURE_SAMPLE_FRAMES:]
@@ -290,8 +292,12 @@ class Tracker:
         if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
             avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
             lv["texture_pass"] = metrics.get("texture_pass", False) or (avg_texture >= liveness_mod.TEXTURE_THRESHOLD)
-            # Juda past texture → spoof (bosma rasm)
+            # Juda past texture → spoof (bosma rasm, qorong'u)
             if avg_texture < 20.0:
+                lv["is_spoof"] = True
+                return
+            # Juda tekis regional texture → ekran rasmi (spoof)
+            if region_cv < SPOOF_REGION_CV_MIN and avg_texture < liveness_mod.TEXTURE_THRESHOLD:
                 lv["is_spoof"] = True
                 return
         else:
@@ -299,8 +305,12 @@ class Tracker:
 
         # ── PASSIVE ONLY MODE ──
         if liveness_mod.PASSIVE_LIVENESS_ONLY:
-            # Agar texture pass bo'lsa va yetarli namuna yig'ilgan bo'lsa → LIVE
-            if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES and lv["texture_pass"]:
+            # Ikkala shart: keskinlik VA regional notekislik
+            if (
+                len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES
+                and lv["texture_pass"]
+                and region_cv >= SPOOF_REGION_CV_MIN
+            ):
                 lv["is_live"] = True
                 lv["liveness_mode"] = "passive"
             return

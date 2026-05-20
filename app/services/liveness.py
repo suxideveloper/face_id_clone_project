@@ -47,8 +47,9 @@ BLINKS_REQUIRED = 1           # Liveness tasdiqlash uchun kerakli blink soni (1 
 BLINK_TIMEOUT_SECONDS = 5.0   # Shu vaqt ichida blink bo'lmasa → fail (8s o'rniga 5s)
 
 # Texture / Spoof Detection
-TEXTURE_THRESHOLD = 60.0      # Laplacian variance. Pastroq = xiralash = rasm
-TEXTURE_SAMPLE_FRAMES = 3     # Necha frameda tekshirish (noto'g'ri ijobiyni kamaytiradi)
+TEXTURE_THRESHOLD = 400.0     # Laplacian variance. Real yuz kameraga yaqin: 800-2000+. Ekran: 150-400.
+TEXTURE_SAMPLE_FRAMES = 5     # Necha frameda tekshirish (5 → ~0.2 soniya @ 30fps)
+SPOOF_REGION_CV_MIN = 0.25   # Regional CV pastroq bo'lsa → ekran (bir tekis)
 
 # Ko'zoynak Fallback (Glasses Mode) - Faqat PASSIVE_LIVENESS_ONLY = False bo'lganda ishlaydi
 # Landmark aniqlanmasa shu qadar ketma-ket frame o'tsa → texture-only rejimga o'tish
@@ -154,33 +155,44 @@ class LivenessDetector:
 
     # ── Texture / Spoof Detection ──────────────────────────────────────────────
 
-    def _check_texture(self, frame: np.ndarray, bbox: tuple[int, int, int, int]) -> float:
+    def _check_texture(self, frame: np.ndarray, bbox: tuple[int, int, int, int]) -> tuple:
         """
-        Yuz ROI uchun Laplacian variance hisoblaydi.
+        Ko'p faktorli passiv anti-spoof tekshiruvi.
 
-        Haqiqiy yuz: terining mikroteksturasi yuqori keskinlik beradi (> TEXTURE_THRESHOLD).
-        Bosib chiqarilgan rasm / ekran: past keskinlik (xiralash, tekis piksellar).
+        Signal 1 — Umumiy keskinlik (Laplacian variance):
+          Real yuz kameraga yaqin: 800-3000+
+          Telefon ekrani: 150-500 (ekran yo'nalishiga qarab)
 
-        Args:
-            frame: BGR frame
-            bbox: (x1, y1, x2, y2)
+        Signal 2 — Regional notekislik (Coefficient of Variation):
+          Real yuz: peshona, burun, lunjlar har xil tekstura → CV yuqori (> 0.35)
+          Ekran rasmi: bir tekis o'tkir → CV past (< 0.25)
 
         Returns:
-            float: variance qiymati (yuqori = real, past = spoof)
+            (texture_score: float, region_cv: float)
         """
         x1, y1, x2, y2 = bbox
-        # Crop va resize (standart o'lcham uchun)
         face_roi = frame[y1:y2, x1:x2]
         if face_roi.size == 0:
-            return 0.0
+            return 0.0, 0.0
 
-        # Standart o'lchamga keltirish (hisob barqarorligi uchun)
         face_roi = cv2.resize(face_roi, (64, 64))
         gray     = cv2.cvtColor(face_roi, cv2.COLOR_BGR2GRAY)
 
-        # Laplacian (ikkinchi tartibli hosilaning variansasi = keskinlik o'lchami)
+        # Signal 1: Umumiy Laplacian variance
         laplacian = cv2.Laplacian(gray, cv2.CV_64F)
-        return float(laplacian.var())
+        texture_score = float(laplacian.var())
+
+        # Signal 2: 4 ta kvadrant bo'yicha regional variance
+        quads = [
+            gray[0:32, 0:32], gray[0:32, 32:64],
+            gray[32:64, 0:32], gray[32:64, 32:64],
+        ]
+        quad_vars = [float(cv2.Laplacian(q, cv2.CV_64F).var()) for q in quads]
+        mean_q = float(np.mean(quad_vars)) + 1e-6
+        std_q  = float(np.std(quad_vars))
+        region_cv = std_q / mean_q  # Yuqori → real yuz, Past → ekran
+
+        return texture_score, region_cv
 
     # ── Asosiy tahlil metodi ───────────────────────────────────────────────────
 
@@ -212,14 +224,21 @@ class LivenessDetector:
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             ear = self._get_ear_from_frame(gray, bbox)
 
-        # 2. Texture hisoblash
-        texture_score = self._check_texture(frame, bbox)
-        texture_pass  = texture_score >= TEXTURE_THRESHOLD
+        # 2. Ko'p faktorli texture tahlili
+        texture_score, region_cv = self._check_texture(frame, bbox)
+        # Ikkala shart ham bajarilishi kerak:
+        #   a) Yetarli keskinlik (real yuz vs xiralash/masofali ekran)
+        #   b) Yetarli regional notekislik (real yuz vs tekis ekran rasmi)
+        texture_pass = (
+            texture_score >= TEXTURE_THRESHOLD
+            and region_cv  >= SPOOF_REGION_CV_MIN
+        )
 
         return {
             "ear":           ear,
             "texture_score": texture_score,
             "texture_pass":  texture_pass,
+            "region_cv":     region_cv,
             "has_landmarks": ear is not None,
         }
 
