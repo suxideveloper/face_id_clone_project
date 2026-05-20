@@ -38,8 +38,9 @@ logger = logging.getLogger(__name__)
 
 
 # ── Sozlanuvchi konstantalar ───────────────────────────────────────────────────
+PASSIVE_LIVENESS_ONLY = True  # Faqat passive tekstura tahlili ishlatilsin (dlib va active blink o'chiriladi)
 
-# Blink Detection (EAR)
+# Blink Detection (EAR) - Faqat PASSIVE_LIVENESS_ONLY = False bo'lganda ishlaydi
 EAR_THRESHOLD = 0.21          # Qo'z yopiq: EAR < bu qiymat
 EAR_CONSEC_FRAMES = 2         # Necha consecutive frame past EAR → bir blink
 BLINKS_REQUIRED = 1           # Liveness tasdiqlash uchun kerakli blink soni (1 ta yetarli)
@@ -49,7 +50,7 @@ BLINK_TIMEOUT_SECONDS = 5.0   # Shu vaqt ichida blink bo'lmasa → fail (8s o'rn
 TEXTURE_THRESHOLD = 60.0      # Laplacian variance. Pastroq = xiralash = rasm
 TEXTURE_SAMPLE_FRAMES = 3     # Necha frameda tekshirish (noto'g'ri ijobiyni kamaytiradi)
 
-# Ko'zoynak Fallback (Glasses Mode)
+# Ko'zoynak Fallback (Glasses Mode) - Faqat PASSIVE_LIVENESS_ONLY = False bo'lganda ishlaydi
 # Landmark aniqlanmasa shu qadar ketma-ket frame o'tsa → texture-only rejimga o'tish
 GLASSES_FALLBACK_FRAMES = 12  # ≈ 28FPS da ~0.4 soniya (20 o'rniga 12 — tezroq)
 # Texture-only rejim uchun qat'iyroq threshold (blink yo'q, texture ishonchliroq bo'lishi kerak)
@@ -68,13 +69,23 @@ class LivenessDetector:
     """
 
     def __init__(self):
-        # dlib face detector (landmark topish uchun)
-        self._dlib_detector = dlib.get_frontal_face_detector()
+        if PASSIVE_LIVENESS_ONLY:
+            self._dlib_detector = None
+            self._predictor = None
+            logger.info("LivenessDetector tayyor: PASSIVE_LIVENESS_ONLY yoqilgan, dlib yuklanmadi.")
+        else:
+            try:
+                # dlib face detector (landmark topish uchun)
+                self._dlib_detector = dlib.get_frontal_face_detector()
 
-        # 68-point shape predictor (face_recognition kutubxonasining modeli)
-        model_path = face_recognition_models.pose_predictor_model_location()
-        self._predictor = dlib.shape_predictor(model_path)
-        logger.info("LivenessDetector tayyor: 68-point model yuklandi.")
+                # 68-point shape predictor (face_recognition kutubxonasining modeli)
+                model_path = face_recognition_models.pose_predictor_model_location()
+                self._predictor = dlib.shape_predictor(model_path)
+                logger.info("LivenessDetector tayyor: 68-point model yuklandi.")
+            except Exception as e:
+                logger.error("dlib modellarini yuklashda xatolik: %s. Passive rejimga majburiy o'tiladi.", e)
+                self._dlib_detector = None
+                self._predictor = None
 
     # ── EAR (Eye Aspect Ratio) ─────────────────────────────────────────────────
 
@@ -123,6 +134,9 @@ class LivenessDetector:
         Returns:
             float | None: EAR qiymati, yoki None (landmark topilmasa)
         """
+        if PASSIVE_LIVENESS_ONLY or self._predictor is None:
+            return None
+
         x1, y1, x2, y2 = bbox
         # dlib rectangle (sol, yuqori, o'ng, past) tartibida
         rect = dlib.rectangle(left=x1, top=y1, right=x2, bottom=y2)
@@ -191,11 +205,12 @@ class LivenessDetector:
                 'has_landmarks': bool,         # Landmark topildimi
             }
         """
-        # Grayscale (EAR uchun)
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-
-        # 1. EAR hisoblash
-        ear = self._get_ear_from_frame(gray, bbox)
+        # 1. EAR hisoblash (faqat passive bo'lmaganda)
+        if PASSIVE_LIVENESS_ONLY:
+            ear = None
+        else:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            ear = self._get_ear_from_frame(gray, bbox)
 
         # 2. Texture hisoblash
         texture_score = self._check_texture(frame, bbox)

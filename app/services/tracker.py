@@ -1,9 +1,9 @@
 import numpy as np
 import time
+import app.services.liveness as liveness_mod
 from app.services.liveness import (
     EAR_THRESHOLD,
     EAR_CONSEC_FRAMES,
-    BLINKS_REQUIRED,
     BLINK_TIMEOUT_SECONDS,
     TEXTURE_SAMPLE_FRAMES,
     GLASSES_FALLBACK_FRAMES,
@@ -289,13 +289,21 @@ class Tracker:
 
         if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
             avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
-            lv["texture_pass"] = metrics.get("texture_pass", False) or (avg_texture >= 60.0)
+            lv["texture_pass"] = metrics.get("texture_pass", False) or (avg_texture >= liveness_mod.TEXTURE_THRESHOLD)
             # Juda past texture → spoof (bosma rasm)
             if avg_texture < 20.0:
                 lv["is_spoof"] = True
                 return
         else:
             lv["texture_pass"] = metrics.get("texture_pass", False)
+
+        # ── PASSIVE ONLY MODE ──
+        if liveness_mod.PASSIVE_LIVENESS_ONLY:
+            # Agar texture pass bo'lsa va yetarli namuna yig'ilgan bo'lsa → LIVE
+            if len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES and lv["texture_pass"]:
+                lv["is_live"] = True
+                lv["liveness_mode"] = "passive"
+            return
 
         # ── Qatlam 2: Blink Detection (EAR) ──────────────────────────────────
         ear = metrics.get("ear")
@@ -331,12 +339,12 @@ class Tracker:
         # ── Timeout tekshiruvi ────────────────────────────────────────────────
         elapsed = current_time - lv["liveness_start"]
         if elapsed > BLINK_TIMEOUT_SECONDS and not lv["is_live"]:
-            if lv["blink_count"] < BLINKS_REQUIRED:
+            if lv["blink_count"] < liveness_mod.BLINKS_REQUIRED:
                 # Qayta urinish: davomiylikni reset qilamiz, lekin blink_count saqlaymiz
                 lv["liveness_start"] = current_time
 
         # ── Xulosa: LIVE (blink rejimi) ───────────────────────────────────────
-        if lv["blink_count"] >= BLINKS_REQUIRED:
+        if lv["blink_count"] >= liveness_mod.BLINKS_REQUIRED:
             lv["is_live"]       = True
             lv["liveness_mode"] = "blink"
 

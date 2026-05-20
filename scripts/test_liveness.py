@@ -45,6 +45,7 @@ section("1. IMPORT VA MODUL YUKLASH")
 # ══════════════════════════════════════════════════════════
 
 try:
+    import app.services.liveness as liveness_module
     from app.services.liveness import (
         liveness_detector, LivenessDetector,
         EAR_THRESHOLD, EAR_CONSEC_FRAMES,
@@ -84,10 +85,10 @@ if EAR_THRESHOLD == 0.21:
 else:
     fail(f"EAR_THRESHOLD = {EAR_THRESHOLD}", "0.21 bo'lishi kerak")
 
-if BLINKS_REQUIRED == 2:
+if BLINKS_REQUIRED == 1:
     ok(f"BLINKS_REQUIRED = {BLINKS_REQUIRED}")
 else:
-    fail(f"BLINKS_REQUIRED = {BLINKS_REQUIRED}", "2 bo'lishi kerak")
+    fail(f"BLINKS_REQUIRED = {BLINKS_REQUIRED}", "1 bo'lishi kerak")
 
 if EAR_CONSEC_FRAMES == 2:
     ok(f"EAR_CONSEC_FRAMES = {EAR_CONSEC_FRAMES}")
@@ -225,6 +226,10 @@ else:
 section("6. BLINK DETECTION MANTIQ TESTI")
 # ══════════════════════════════════════════════════════════
 
+# Active blink tests expect blink logic to be active
+liveness_module.PASSIVE_LIVENESS_ONLY = False
+liveness_module.BLINKS_REQUIRED = 2
+
 def make_metrics(ear, texture=150.0):
     return {'ear': ear, 'texture_score': texture,
             'texture_pass': texture >= TEXTURE_THRESHOLD, 'has_landmarks': True}
@@ -280,6 +285,9 @@ else:
 section("7. SPOOF DETECTION TESTI")
 # ══════════════════════════════════════════════════════════
 
+liveness_module.PASSIVE_LIVENESS_ONLY = True
+liveness_module.BLINKS_REQUIRED = 1
+
 t4 = Tracker()
 t4.tracks[1] = t4._new_track_data((0,0,100,100))
 
@@ -332,6 +340,9 @@ except Exception as e:
 section("9. REMOVE_USER → LIVENESS RESET TESTI")
 # ══════════════════════════════════════════════════════════
 
+liveness_module.PASSIVE_LIVENESS_ONLY = False
+liveness_module.BLINKS_REQUIRED = 2
+
 t6 = Tracker()
 t6.tracks[1] = t6._new_track_data((0,0,100,100))
 t6.tracks[1]['name'] = 'john'
@@ -380,6 +391,9 @@ else:
 # ══════════════════════════════════════════════════════════
 section("11. ANALYZE_FRAME() REAL KAMERA TESTI")
 # ══════════════════════════════════════════════════════════
+
+liveness_module.PASSIVE_LIVENESS_ONLY = True
+liveness_module.BLINKS_REQUIRED = 1
 
 cap = cv2.VideoCapture(0)
 if cap.isOpened():
@@ -457,6 +471,9 @@ except Exception as e:
 # ══════════════════════════════════════════════════════════
 section("13. BLINK TIMEOUT TESTI")
 # ══════════════════════════════════════════════════════════
+
+liveness_module.PASSIVE_LIVENESS_ONLY = False
+liveness_module.BLINKS_REQUIRED = 2
 
 t8 = Tracker()
 t8.tracks[1] = t8._new_track_data((0,0,100,100))
@@ -585,6 +602,52 @@ if lvg5b['no_landmark_streak'] == 0:
     ok("Landmark topilgach no_landmark_streak → 0 (reset)")
 else:
     fail("no_landmark_streak reset bo'lmadi", f"streak={lvg5b['no_landmark_streak']}")
+
+# ══════════════════════════════════════════════════════════
+section("15. PASSIVE LIVENESS ONLY TESTI (YANGI)")
+# ══════════════════════════════════════════════════════════
+
+liveness_module.PASSIVE_LIVENESS_ONLY = True
+liveness_module.BLINKS_REQUIRED = 1
+
+tp = Tracker()
+tp.tracks[1] = tp._new_track_data((0,0,100,100))
+
+# 1. Real face: high texture score (>= TEXTURE_THRESHOLD) for TEXTURE_SAMPLE_FRAMES (3)
+# analyze_frame should return ear=None under passive liveness, and landmarks=False
+frame_result = liveness_detector.analyze_frame(np.random.randint(0, 255, (200, 200, 3), dtype=np.uint8), (10, 10, 190, 190))
+if frame_result['ear'] is None and not frame_result['has_landmarks']:
+    ok("PASSIVE LIVENESS: analyze_frame EAR va landmarks-ni chetlab o'tdi")
+else:
+    fail("PASSIVE LIVENESS: analyze_frame landmarks-ni chetlab o'tmadi", str(frame_result))
+
+# Put 3 passive frames with high texture
+passive_m = {'ear': None, 'texture_score': 150.0, 'texture_pass': True, 'has_landmarks': False}
+for _ in range(TEXTURE_SAMPLE_FRAMES):
+    tp.update_liveness(1, passive_m)
+
+lvp = tp.get_liveness_state(1)
+if lvp['is_live'] and lvp['liveness_mode'] == 'passive':
+    ok("PASSIVE LIVENESS: 3 ta yaxshi tekstura frame → LIVE tasdiqlandi (soniyada!)")
+else:
+    fail("PASSIVE LIVENESS: LIVE tasdiqlanmadi", str(lvp))
+
+# 2. Spoof face: low texture score (< 20) under passive mode
+tp_spoof = Tracker()
+tp_spoof.tracks[1] = tp_spoof._new_track_data((0,0,100,100))
+
+passive_spoof_m = {'ear': None, 'texture_score': 5.0, 'texture_pass': False, 'has_landmarks': False}
+for _ in range(TEXTURE_SAMPLE_FRAMES):
+    tp_spoof.update_liveness(1, passive_spoof_m)
+
+lvp_spoof = tp_spoof.get_liveness_state(1)
+if lvp_spoof['is_spoof'] and not lvp_spoof['is_live']:
+    ok("PASSIVE LIVENESS: past tekstura frame → SPOOF aniqlandi")
+else:
+    fail("PASSIVE LIVENESS: SPOOF aniqlanmadi", str(lvp_spoof))
+
+# Qaytadan production holatiga tiklaymiz (PASSIVE_LIVENESS_ONLY = True)
+liveness_module.PASSIVE_LIVENESS_ONLY = True
 
 # ══════════════════════════════════════════════════════════
 # YAKUNIY NATIJA

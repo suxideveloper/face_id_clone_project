@@ -13,7 +13,7 @@ import asyncio
 from app.services.detector import detector
 from app.services.recognizer import recognizer
 from app.services.tracker import Tracker
-from app.services.liveness import liveness_detector, BLINKS_REQUIRED
+from app.services.liveness import liveness_detector, BLINKS_REQUIRED, PASSIVE_LIVENESS_ONLY
 
 # Face quality filter constants
 MIN_FACE_SIZE = 80    # pixels — ignore faces smaller than 80x80
@@ -204,9 +204,13 @@ class VideoProcessor:
                 face_result["color"] = "green"
                 face_result["label"] = f"✓ {name}"
             elif name and name != "Unknown" and is_confirmed and not is_live:
-                blink_count = lv_state.get("blink_count", 0)
-                face_result["color"] = "orange"
-                face_result["label"] = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
+                if PASSIVE_LIVENESS_ONLY:
+                    face_result["color"] = "orange"
+                    face_result["label"] = f"Checking liveness: {name}"
+                else:
+                    blink_count = lv_state.get("blink_count", 0)
+                    face_result["color"] = "orange"
+                    face_result["label"] = f"Blink x{blink_count}/{BLINKS_REQUIRED}: {name}"
             elif name and name != "Unknown" and not is_confirmed:
                 face_result["color"] = "yellow"
                 face_result["label"] = f"Verifying: {name}..."
