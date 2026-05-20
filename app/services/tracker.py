@@ -331,13 +331,25 @@ class Tracker:
             lv["no_landmark_streak"] = 0   # streak'ni reset qilamiz
             lv["last_ear"] = ear
 
-            if ear < EAR_THRESHOLD:
+            # Dinamik EAR chegarasi boshlang'ich qiymati
+            if "max_ear" not in lv or lv["max_ear"] is None:
+                lv["max_ear"] = ear
+            else:
+                # Ko'z ochiq paytdagi eng yuqori EAR qiymatini saqlab boramiz (shovqindan holi 0.45 gacha)
+                if ear > lv["max_ear"] and ear < 0.45:
+                    lv["max_ear"] = ear
+
+            # Dinamik EAR chegarasi: max_ear ning 72% qismi, [0.16, 0.24] diapazonida cheklangan
+            dynamic_threshold = max(0.16, min(0.24, 0.72 * lv["max_ear"]))
+
+            if ear < dynamic_threshold:
                 # Ko'z yopilmoqda
                 lv["ear_below_count"] += 1
             else:
                 # Ko'z ochildi — agar yetarli konsekutiv frame bo'lsa → blink
                 if lv["ear_below_count"] >= EAR_CONSEC_FRAMES:
                     lv["blink_count"] += 1
+                    print(f"[TRACKER BLINK] Blink registered! Total count: {lv['blink_count']} (EAR: {ear:.3f}, Dynamic Threshold: {dynamic_threshold:.3f}, Max EAR: {lv['max_ear']:.3f})")
                 lv["ear_below_count"] = 0
         else:
             # Landmark topilmadi (ko'zoynak, burchak, past yorug'lik)
@@ -361,6 +373,7 @@ class Tracker:
                 lv["liveness_start"] = current_time
 
         # ── Xulosa: LIVE (blink rejimi) ───────────────────────────────────────
+        # Faqat ko'z pirpiratilishi kifoya
         if lv["blink_count"] >= liveness_mod.BLINKS_REQUIRED:
             lv["is_live"]       = True
             lv["liveness_mode"] = "blink"

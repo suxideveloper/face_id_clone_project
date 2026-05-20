@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── Sozlanuvchi konstantalar ───────────────────────────────────────────────────
-PASSIVE_LIVENESS_ONLY = True  # Faqat passive tekstura tahlili ishlatilsin (dlib va active blink o'chiriladi)
+PASSIVE_LIVENESS_ONLY = False  # Xavfsiz Hybrid (Passive + Dynamic Blink) rejimini yoqish
 
 # Blink Detection (EAR) - Faqat PASSIVE_LIVENESS_ONLY = False bo'lganda ishlaydi
 EAR_THRESHOLD = 0.21          # Qo'z yopiq: EAR < bu qiymat
