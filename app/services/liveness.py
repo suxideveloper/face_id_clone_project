@@ -55,7 +55,7 @@ SPOOF_REGION_CV_MIN = 0.25   # Regional CV pastroq bo'lsa → ekran (bir tekis)
 # Landmark aniqlanmasa shu qadar ketma-ket frame o'tsa → texture-only rejimga o'tish
 GLASSES_FALLBACK_FRAMES = 12  # ≈ 28FPS da ~0.4 soniya (20 o'rniga 12 — tezroq)
 # Texture-only rejim uchun qat'iyroq threshold (blink yo'q, texture ishonchliroq bo'lishi kerak)
-GLASSES_TEXTURE_THRESHOLD = 100.0  # Odatiy 60.0 dan kattaroq (120.0 o'rniga 100.0)
+GLASSES_TEXTURE_THRESHOLD = 250.0  # Odatiy 100.0 dan kattaroq (soxta fonlar o'tmasligi uchun)
 
 # Landmark indekslari (dlib 68-point)
 LEFT_EYE_INDICES  = list(range(36, 42))   # 6 ta nuqta: chapki ko'z

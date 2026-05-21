@@ -357,13 +357,14 @@ class Tracker:
 
         # ── Qatlam 3: Ko'zoynak Fallback (Glasses Mode) ───────────────────────
         # Landmark uzoq vaqt topilmasa lekin texture barqaror yaxshi bo'lsa → LIVE
-        no_lm = lv["no_landmark_streak"]
-        if no_lm >= GLASSES_FALLBACK_FRAMES and len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
-            avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
-            if avg_texture >= GLASSES_TEXTURE_THRESHOLD:
-                lv["is_live"]       = True
-                lv["liveness_mode"] = "glasses"
-                return  # Glasses rejimi orqali tasdiqlandi
+        # Commented out to prevent static background elements from triggering "live" status.
+        # no_lm = lv["no_landmark_streak"]
+        # if no_lm >= GLASSES_FALLBACK_FRAMES and len(lv["texture_scores"]) >= TEXTURE_SAMPLE_FRAMES:
+        #     avg_texture = sum(lv["texture_scores"]) / len(lv["texture_scores"])
+        #     if avg_texture >= GLASSES_TEXTURE_THRESHOLD:
+        #         lv["is_live"]       = True
+        #         lv["liveness_mode"] = "glasses"
+        #         return  # Glasses rejimi orqali tasdiqlandi
 
         # ── Timeout tekshiruvi ────────────────────────────────────────────────
         elapsed = current_time - lv["liveness_start"]
